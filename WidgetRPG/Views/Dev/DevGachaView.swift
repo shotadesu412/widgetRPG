@@ -67,7 +67,6 @@ struct DevGachaView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     expectedCard
-                    biasCard
                     simCard
                     rosterCard
                 }
@@ -140,39 +139,6 @@ struct DevGachaView: View {
             Text(k).font(.system(size: 10)).foregroundStyle(Palette.textSecondary)
             Text(v).font(.subheadline.bold()).monospacedDigit().foregroundStyle(Palette.textPrimary)
         }
-    }
-
-    // MARK: - 出現傾斜
-
-    private var biasCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("出現率の傾斜(獲得ごとに可変)")
-                .font(.headline)
-                .foregroundStyle(Palette.accent)
-            Text("獲得済みキャラの出現しやすさ。低いほど、集めるほど未所持キャラが出やすくなる。1.00で従来どおり(傾斜なし)。")
-                .font(.caption2)
-                .foregroundStyle(Palette.textSecondary)
-            HStack {
-                Slider(value: $model.config.ownedAppearanceBias, in: 0...1, step: 0.05)
-                    .tint(Palette.accent)
-                Text(String(format: "×%.2f", model.config.ownedAppearanceBias))
-                    .font(.subheadline.bold().monospaced())
-                    .foregroundStyle(Palette.textPrimary)
-                    .frame(width: 62, alignment: .trailing)
-            }
-            Text(biasHint)
-                .font(.caption2)
-                .foregroundStyle(Palette.textSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .panelStyle()
-    }
-
-    private var biasHint: String {
-        let b = model.config.ownedAppearanceBias
-        if b >= 0.98 { return "傾斜なし: 獲得済みも通常どおり来訪する" }
-        if b <= 0.02 { return "最大傾斜: 獲得済みは二度と来訪しない(未所持だけが並ぶ)" }
-        return "獲得済みキャラは通常の \(Int(b * 100))% の頻度で来訪する"
     }
 
     // MARK: - 手動シミュレーター

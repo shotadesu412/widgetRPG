@@ -36,9 +36,6 @@ struct GachaConfig: Equatable {
     var initRate: [ScoutTier: Double] = [.basic: 25, .special: 10, .rare: 30]
     /// 失敗ごとのスカウト率上昇(%)
     var failStep: [ScoutTier: Double] = [.basic: 5, .special: 4, .rare: 0]
-    /// 獲得済みキャラの出現重み倍率(1=変化なし、0=出現しない)。
-    /// 小さいほど、集めるほど未所持キャラが出やすくなる = 出現率の傾斜が可変になる。
-    var ownedAppearanceBias: Double = 0.3
     var visitorsPerDay = 3
 }
 
@@ -63,11 +60,23 @@ enum GachaCore {
         return min(1.0, max(0.0, base / 100.0))
     }
 
-    /// 現在の所持状況を踏まえた1人あたりの出現重み
+    /// 現在の所持状況を踏まえた1人あたりの出現重み。
+    /// 排出済みキャラは出現しない。排出済みキャラの分の出現率は
+    /// 基本70%:特殊25%:レア5% の比率で残りのキャラに再分配される。
     static func appearanceWeight(_ c: GachaCharacter, owned: Set<String>, config: GachaConfig) -> Double {
-        let count = Double(countInTier[c.tier] ?? 1)
-        let base = (config.appearance[c.tier] ?? 0) / count
-        return owned.contains(c.id) ? base * config.ownedAppearanceBias : base
+        if owned.contains(c.id) { return 0 }
+        let unownedInTier = roster.filter { $0.tier == c.tier && !owned.contains($0.id) }.count
+        guard unownedInTier > 0 else { return 0 }
+        // 未所持キャラが残っているティアの基本レート合計(正規化用)
+        var activeWeight: Double = 0
+        for tier in ScoutTier.allCases {
+            if roster.contains(where: { $0.tier == tier && !owned.contains($0.id) }) {
+                activeWeight += config.appearance[tier] ?? 0
+            }
+        }
+        guard activeWeight > 0 else { return 0 }
+        let tierRate = (config.appearance[c.tier] ?? 0) / activeWeight
+        return tierRate / Double(unownedInTier)
     }
 
     /// 重み付きで来訪者を1人抽選
