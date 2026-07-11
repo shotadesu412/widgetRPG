@@ -117,7 +117,8 @@ enum ItemFactory {
         Egg(grade: grade, fixedSpeciesID: fixedSpeciesID, obtainedAt: now)
     }
 
-    /// 卵からオトモを孵化させる。星・種族・個体値は孵化時に確定する
+    /// 卵からオトモを孵化させる。星・種族・個体値は孵化時に確定する。
+    /// 伝説キャラは伝説の卵からのみ生まれる(星3確定)
     static func hatch(_ egg: Egg) -> Otomo {
         let rarity = egg.grade.rollRarity()
 
@@ -207,7 +208,8 @@ enum ItemFactory {
             default:
                 return ShopItem(tier: tier, kind: .egg,
                                 name: EggGrade.legendary.label, price: Int.random(in: 1800...2600),
-                                detail: "孵化に10時間。個体値が優遇される", eggGrade: .legendary)
+                                detail: "孵化に10時間。伝説のオトモ(星3)が生まれ、個体値も優遇",
+                                eggGrade: .legendary)
             }
         }
     }

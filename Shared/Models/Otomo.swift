@@ -139,12 +139,12 @@ enum EggGrade: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// 星の抽選率(%)
+    /// 星の抽選率(%)。伝説の卵は伝説キャラ(星3)確定
     var starRates: [(rarity: Rarity, rate: Double)] {
         switch self {
         case .normal: [(.star1, 90), (.star2, 9.5), (.star3, 0.5)]
         case .uncommon: [(.star1, 20), (.star2, 78), (.star3, 2)]
-        case .legendary: [(.star1, 0), (.star2, 50), (.star3, 50)]
+        case .legendary: [(.star3, 100)]
         }
     }
 
