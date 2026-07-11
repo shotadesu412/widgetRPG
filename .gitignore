@@ -15,3 +15,10 @@ WidgetRPG.xcodeproj/
 
 # ローカルのツール設定
 .claude/
+
+# AssetPipeline (Python)
+Tools/AssetPipeline/.venv/
+Tools/AssetPipeline/__pycache__/
+Tools/AssetPipeline/**/__pycache__/
+Tools/AssetPipeline/output/
+Tools/AssetPipeline/input/*/*.png
