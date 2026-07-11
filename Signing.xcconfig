@@ -1,0 +1,9 @@
+// 実機ビルド用の署名設定。
+// 自分の Apple Developer Team ID をここに設定する(Xcode の Signing & Capabilities でも可)。
+// 現在の開発証明書から検出した Team ID を既定値にしてある。
+DEVELOPMENT_TEAM = 7Z2ZRB6V2J
+
+// メモ: App Group(group.com.shota.widgetrpg)は有料の Apple Developer Program が必要。
+// 無料(個人)アカウントで実機に入れる場合は、両ターゲットの .entitlements から
+// App Group を外すこと。その場合アプリとウィジェットはセーブを共有できず、
+// ウィジェットは新規データ表示になる(アプリ単体の動作確認は可能)。

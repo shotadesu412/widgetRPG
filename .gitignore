@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Xcode / build output
+build/
+build-device/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.dSYM.zip
+
+# XcodeGen が project.yml から生成する(`xcodegen generate` で再生成)
+WidgetRPG.xcodeproj/
+
+# ローカルのツール設定
+.claude/
