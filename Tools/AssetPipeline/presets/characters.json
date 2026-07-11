@@ -1,0 +1,14 @@
+{
+  "description": "キャラクター/モンスター用。背景透過→補正→Ground固定まで一括",
+  "processors": [
+    "background_remover",
+    "noise",
+    "trim",
+    "resize",
+    "pixelize",
+    "palette",
+    "outline",
+    "ground"
+  ],
+  "overrides": {}
+}

@@ -1,0 +1,13 @@
+{
+  "description": "UIパーツ用。Ground固定はせず、透過・減色のみ",
+  "processors": [
+    "background_remover",
+    "noise",
+    "trim",
+    "pixelize",
+    "palette"
+  ],
+  "overrides": {
+    "outline": false
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "description": "背景用(暫定)。段階4で background Processor に置き換える",
+  "processors": [
+    "pixelize",
+    "palette"
+  ],
+  "overrides": {
+    "transparent_background": false,
+    "trim": false,
+    "outline": false,
+    "remove_antialias": false,
+    "noise_remove": false,
+    "palette_size": 64
+  }
+}
