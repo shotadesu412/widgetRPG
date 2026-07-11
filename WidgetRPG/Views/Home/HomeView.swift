@@ -6,6 +6,7 @@ struct HomeView: View {
     @State private var showInventory = false
     @State private var showDevBattle = false
     @State private var showDevGacha = false
+    @State private var showDevEgg = false
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,11 @@ struct HomeView: View {
                         } label: {
                             Label("ガチャ検証", systemImage: "dice.fill")
                         }
+                        Button {
+                            showDevEgg = true
+                        } label: {
+                            Label("卵検証", systemImage: "oval.portrait.fill")
+                        }
                     } label: {
                         Image(systemName: "wrench.and.screwdriver.fill")
                     }
@@ -49,6 +55,9 @@ struct HomeView: View {
             }
             .fullScreenCover(isPresented: $showDevGacha) {
                 DevGachaView()
+            }
+            .fullScreenCover(isPresented: $showDevEgg) {
+                DevEggView()
             }
         }
     }

@@ -57,10 +57,8 @@ struct IndividualValues: Codable, Hashable {
         )
     }
 
-    /// 星1・2は完全ランダム。星3は合計がプラスに寄る(伝説の卵はさらに優遇)
+    /// 星1・2は完全ランダム。星3は個体値の合計が+10%以上(仕様確定)。伝説の卵はさらに優遇
     static func roll(rarity: Rarity, favored: Bool) -> IndividualValues {
-        // 「星3は平均してプラス10%以上」は全ステ+10で固定になってしまうため、
-        // 合計+10以上(=ならして+10ポイント以上)と解釈。伝説の卵は合計+25以上。要調整。
         let minTotal: Int? = rarity == .star3 ? (favored ? 25 : 10) : (favored ? 15 : nil)
         for _ in 0..<200 {
             let iv = IndividualValues(
@@ -139,14 +137,17 @@ enum EggGrade: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// 星の抽選率(%)。伝説の卵は伝説キャラ(星3)確定
+    /// 星の抽選率(%)
     var starRates: [(rarity: Rarity, rate: Double)] {
         switch self {
         case .normal: [(.star1, 90), (.star2, 9.5), (.star3, 0.5)]
         case .uncommon: [(.star1, 20), (.star2, 78), (.star3, 2)]
-        case .legendary: [(.star3, 100)]
+        case .legendary: [(.star2, 50), (.star3, 50)]
         }
     }
+
+    /// 伝説の卵で星3を引いたとき、伝説キャラになる確率(%)。外れは通常キャラの星3
+    static let legendarySpeciesChanceInStar3 = 30.0
 
     func rollRarity() -> Rarity {
         var x = Double.random(in: 0..<100)

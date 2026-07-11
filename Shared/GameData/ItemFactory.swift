@@ -118,14 +118,15 @@ enum ItemFactory {
     }
 
     /// 卵からオトモを孵化させる。星・種族・個体値は孵化時に確定する。
-    /// 伝説キャラは伝説の卵からのみ生まれる(星3確定)
+    /// 伝説キャラは伝説の卵の星3枠(のうち30%)からのみ生まれる
     static func hatch(_ egg: Egg) -> Otomo {
         let rarity = egg.grade.rollRarity()
 
         let species: OtomoSpecies
         if let fixed = egg.fixedSpeciesID {
             species = OtomoCatalog.species(id: fixed)
-        } else if egg.grade == .legendary {
+        } else if egg.grade == .legendary, rarity == .star3,
+                  Double.random(in: 0..<100) < EggGrade.legendarySpeciesChanceInStar3 {
             let pool = OtomoCatalog.all.filter { $0.category == .legendary }
             species = pool.randomElement() ?? OtomoCatalog.all[1]
         } else {
@@ -208,7 +209,7 @@ enum ItemFactory {
             default:
                 return ShopItem(tier: tier, kind: .egg,
                                 name: EggGrade.legendary.label, price: Int.random(in: 1800...2600),
-                                detail: "孵化に10時間。伝説のオトモ(星3)が生まれ、個体値も優遇",
+                                detail: "孵化に10時間。星2以上確定、稀に伝説のオトモも。個体値優遇",
                                 eggGrade: .legendary)
             }
         }

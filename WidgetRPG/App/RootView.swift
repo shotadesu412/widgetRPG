@@ -4,9 +4,10 @@ import SwiftUI
 struct RootView: View {
     // 開発用: 環境変数 START_TAB で初期タブを指定できる(0=ホーム 〜 4=パーティ)
     @State private var selection = Int(ProcessInfo.processInfo.environment["START_TAB"] ?? "") ?? 0
-    // 開発用: DEV_BATTLE=1 / DEV_GACHA=1 で起動時に各ツールを開く
+    // 開発用: DEV_BATTLE=1 / DEV_GACHA=1 / DEV_EGG=1 で起動時に各ツールを開く
     @State private var showDevBattle = ProcessInfo.processInfo.environment["DEV_BATTLE"] == "1"
     @State private var showDevGacha = ProcessInfo.processInfo.environment["DEV_GACHA"] == "1"
+    @State private var showDevEgg = ProcessInfo.processInfo.environment["DEV_EGG"] == "1"
 
     var body: some View {
         content
@@ -16,6 +17,9 @@ struct RootView: View {
             }
             .fullScreenCover(isPresented: $showDevGacha) {
                 DevGachaView()
+            }
+            .fullScreenCover(isPresented: $showDevEgg) {
+                DevEggView()
             }
     }
 
