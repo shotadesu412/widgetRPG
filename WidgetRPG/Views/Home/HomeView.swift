@@ -127,7 +127,7 @@ struct ShopSection: View {
                             VStack(spacing: 6) {
                                 Image(systemName: item.kind.symbolName)
                                     .font(.title3)
-                                    .foregroundStyle(Palette.accent)
+                                    .foregroundStyle(tierColor(item.tier))
                                 Text(item.name)
                                     .font(.caption2)
                                     .lineLimit(1)
@@ -137,7 +137,26 @@ struct ShopSection: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Palette.background)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(tierColor(item.tier),
+                                                    lineWidth: item.tier == .basic ? 0 : 1)
+                                    )
+                            )
+                            .overlay(alignment: .topTrailing) {
+                                if item.tier != .basic {
+                                    Text(item.tier.label)
+                                        .font(.system(size: 8, weight: .bold))
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(tierColor(item.tier)))
+                                        .foregroundStyle(Palette.background)
+                                        .offset(x: -3, y: 3)
+                                }
+                            }
                         }
                         .buttonStyle(.plain)
                     }
@@ -160,6 +179,15 @@ struct ShopSection: View {
             Button("やめる", role: .cancel) { selectedItem = nil }
         }
     }
+
+    /// 陳列レア度の色(基本/やや珍しい/低確率)
+    private func tierColor(_ tier: ShopTier) -> Color {
+        switch tier {
+        case .basic: Palette.accent
+        case .uncommon: Color(red: 0.55, green: 0.75, blue: 0.95)
+        case .lowChance: Color(red: 0.82, green: 0.55, blue: 0.84)
+        }
+    }
 }
 
 /// ギルド: 毎日3人来訪し、1人を選んで確率でスカウト
@@ -179,12 +207,14 @@ struct GuildSection: View {
                     .foregroundStyle(Palette.textSecondary)
             }
 
-            if game.data.guild.scoutedToday {
+            if game.data.guild.scoutedToday && game.data.guildTickets == 0 {
                 Text("本日のスカウトは終了した。また明日、新たな来訪者が現れる")
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
             } else {
-                Text("今日の来訪者から1人を選んでスカウトできる")
+                Text(game.data.guild.scoutedToday
+                     ? "ギルドチケット(×\(game.data.guildTickets))でもう一度スカウトできる"
+                     : "今日の来訪者から1人を選んでスカウトできる")
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
                 HStack(spacing: 10) {

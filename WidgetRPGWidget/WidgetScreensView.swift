@@ -69,18 +69,35 @@ struct EggScreenView: View {
     let entry: GameEntry
 
     var body: some View {
-        if let egg = entry.data.eggs.first {
+        // 孵化器にセット中の卵の様子を表示(孵化は手動セット)
+        if let egg = entry.data.incubatingEgg {
             HStack(spacing: 12) {
                 EggCrackView(crackStage: egg.crackStage(now: entry.date), size: 44)
                 VStack(alignment: .leading, spacing: 4) {
+                    Text(egg.grade.label)
+                        .font(.caption.bold())
+                        .foregroundStyle(egg.grade == .legendary ? Palette.accent : Palette.textPrimary)
                     Text(egg.statusText(now: entry.date))
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(Palette.textPrimary)
                     if entry.data.eggs.count > 1 {
                         Text("ほかに\(entry.data.eggs.count - 1)個の卵が眠っている")
                             .font(.caption2)
                             .foregroundStyle(Palette.textSecondary)
                     }
+                }
+                Spacer()
+            }
+        } else if let waiting = entry.data.eggs.first {
+            HStack(spacing: 12) {
+                EggCrackView(crackStage: 0, size: 44)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(waiting.grade.label)
+                        .font(.caption.bold())
+                        .foregroundStyle(Palette.textPrimary)
+                    Text("アプリで孵化器にセットしよう")
+                        .font(.caption2)
+                        .foregroundStyle(Palette.textSecondary)
                 }
                 Spacer()
             }

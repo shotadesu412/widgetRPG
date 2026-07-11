@@ -32,8 +32,52 @@ struct OtomoSpecies: Identifiable, Codable, Hashable {
     let baseStats: BaseStats
     /// 伝説・神話は進化しない
     var canEvolve: Bool { category != .legendary && category != .mythic }
-    /// 孵化の基準時間(秒)。強い種族ほど長い
+    /// (旧仕様の名残。孵化時間は卵の種類で決まる)
     let baseHatchSeconds: TimeInterval
+}
+
+/// 個体値(オトモのみ)。各ステータスに±10%のブレ
+struct IndividualValues: Codable, Hashable {
+    var hp = 0
+    var attack = 0
+    var defense = 0
+    var speed = 0
+    var magic = 0
+
+    var total: Int { hp + attack + defense + speed + magic }
+    var average: Double { Double(total) / 5.0 }
+
+    func applied(to stats: BaseStats) -> BaseStats {
+        BaseStats(
+            hp: Int(Double(stats.hp) * (1.0 + Double(hp) / 100)),
+            attack: Int(Double(stats.attack) * (1.0 + Double(attack) / 100)),
+            defense: Int(Double(stats.defense) * (1.0 + Double(defense) / 100)),
+            speed: Int(Double(stats.speed) * (1.0 + Double(speed) / 100)),
+            magic: Int(Double(stats.magic) * (1.0 + Double(magic) / 100))
+        )
+    }
+
+    /// 星1・2は完全ランダム。星3は合計がプラスに寄る(伝説の卵はさらに優遇)
+    static func roll(rarity: Rarity, favored: Bool) -> IndividualValues {
+        // 「星3は平均してプラス10%以上」は全ステ+10で固定になってしまうため、
+        // 合計+10以上(=ならして+10ポイント以上)と解釈。伝説の卵は合計+25以上。要調整。
+        let minTotal: Int? = rarity == .star3 ? (favored ? 25 : 10) : (favored ? 15 : nil)
+        for _ in 0..<200 {
+            let iv = IndividualValues(
+                hp: Int.random(in: -10...10),
+                attack: Int.random(in: -10...10),
+                defense: Int.random(in: -10...10),
+                speed: Int.random(in: -10...10),
+                magic: Int.random(in: -10...10)
+            )
+            if let minTotal {
+                if iv.total >= minTotal { return iv }
+            } else {
+                return iv
+            }
+        }
+        return IndividualValues(hp: 10, attack: 10, defense: 10, speed: 10, magic: 10)
+    }
 }
 
 /// オトモ。卵から生まれ、キャラ同様スロットを持ちランダムにスキルが付与される
@@ -41,8 +85,10 @@ struct Otomo: Identifiable, Codable, Hashable {
     var id = UUID()
     var speciesID: String
     var nickname: String?
-    /// 星1〜3。星に応じて進化できる回数が異なる(伝説・神話は星3固定)
+    /// 星1〜3。星に応じて進化できる回数が異なる(星2=1回、星3=2回)
     var rarity: Rarity
+    /// 個体値(オトモのみ導入)
+    var ivs = IndividualValues()
     var stage = 0
     var level = 1
     var exp = 0
@@ -56,25 +102,79 @@ struct Otomo: Identifiable, Codable, Hashable {
 
     var displayName: String { nickname ?? species().name }
 
-    /// 星の数に応じた進化上限
+    /// 星の数に応じた進化上限(星1=0回、星2=1回、星3=2回)
     var maxStage: Int { species().canEvolve ? rarity.rawValue - 1 : 0 }
 
     var grownStats: BaseStats {
         let base = species().baseStats.scaled(by: 1.0 + Double(rarity.rawValue - 1) * 0.25)
-        return (base + base.scaled(by: Double(level - 1) * 0.08)).scaled(by: 1.0 + Double(stage) * 0.4)
+        let leveled = (base + base.scaled(by: Double(level - 1) * 0.08)).scaled(by: 1.0 + Double(stage) * 0.4)
+        return ivs.applied(to: leveled)
     }
 }
 
-/// 卵。色や形で中身の強さ・種族の傾向が分かる。孵化時間は数字では見せない
+// MARK: - 卵
+
+/// 卵の種類。色や形(=種類)で強さの傾向と孵化時間が分かる。星は孵化するまで分からない
+enum EggGrade: String, Codable, CaseIterable, Identifiable {
+    case normal    // 普通の卵
+    case uncommon  // 珍しい卵
+    case legendary // 伝説の卵(個体値優遇)
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .normal: "普通の卵"
+        case .uncommon: "珍しい卵"
+        case .legendary: "伝説の卵"
+        }
+    }
+
+    /// 孵化時間(普通2時間 / 珍しい5時間 / 伝説10時間)
+    var hatchSeconds: TimeInterval {
+        switch self {
+        case .normal: 2 * 3600
+        case .uncommon: 5 * 3600
+        case .legendary: 10 * 3600
+        }
+    }
+
+    /// 星の抽選率(%)
+    var starRates: [(rarity: Rarity, rate: Double)] {
+        switch self {
+        case .normal: [(.star1, 90), (.star2, 9.5), (.star3, 0.5)]
+        case .uncommon: [(.star1, 20), (.star2, 78), (.star3, 2)]
+        case .legendary: [(.star1, 0), (.star2, 50), (.star3, 50)]
+        }
+    }
+
+    func rollRarity() -> Rarity {
+        var x = Double.random(in: 0..<100)
+        for (rarity, rate) in starRates {
+            x -= rate
+            if x < 0 { return rarity }
+        }
+        return .star1
+    }
+}
+
+/// 卵。孵化は自動ではなく、自分で孵化器にセットして開始する
 struct Egg: Identifiable, Codable, Hashable {
     var id = UUID()
-    var speciesID: String
-    var rarity: Rarity
+    var grade: EggGrade
+    /// ボスドロップなど中身が確定している卵(神話キャラ等)
+    var fixedSpeciesID: String?
     var obtainedAt: Date
-    var hatchSeconds: TimeInterval
+    /// 孵化セットした時刻(nil = 未セット)
+    var incubationStartedAt: Date?
+    /// セット時に確定する孵化所要時間(テイマー編成で短縮)
+    var hatchSeconds: TimeInterval = 0
+
+    var isIncubating: Bool { incubationStartedAt != nil }
 
     func progress(now: Date = Date()) -> Double {
-        min(1.0, now.timeIntervalSince(obtainedAt) / max(hatchSeconds, 1))
+        guard let start = incubationStartedAt else { return 0 }
+        return min(1.0, now.timeIntervalSince(start) / max(hatchSeconds, 1))
     }
 
     /// ひび割れ段階 0(無傷)〜3(孵化寸前)。ウィジェットはこれで孵化状況を伝える
@@ -86,14 +186,15 @@ struct Egg: Identifiable, Codable, Hashable {
         return 0
     }
 
-    func isReady(now: Date = Date()) -> Bool { progress(now: now) >= 1.0 }
+    func isReady(now: Date = Date()) -> Bool { isIncubating && progress(now: now) >= 1.0 }
 
     func statusText(now: Date = Date()) -> String {
+        guard isIncubating else { return "孵化を待っている(セットで孵化開始)" }
         switch crackStage(now: now) {
-        case 0: "静かに眠っている……"
-        case 1: "小さなひびが入った"
-        case 2: "ひびが広がり、中で何かが動いている"
-        default: "今にも生まれそうだ!"
+        case 0: return "静かに眠っている……"
+        case 1: return "小さなひびが入った"
+        case 2: return "ひびが広がり、中で何かが動いている"
+        default: return "今にも生まれそうだ!"
         }
     }
 }

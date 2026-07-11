@@ -66,7 +66,28 @@ extension BattleEngine {
 
     /// ゲーム内スキル → 戦闘アクションの変換
     private static func action(from skill: Skill) -> BattleAction {
-        switch skill.kind {
+        // 武器スキルは武器種の効果傾向を優先する
+        if let effect = skill.weaponEffect {
+            switch effect {
+            case .single:     // 剣: 単体
+                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy))
+            case .aoe:        // 大剣: 全体攻撃
+                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .allEnemies))
+            case .crit:       // 短剣: クリティカル
+                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, critChance: 40))
+            case .multiHit:   // 双剣: 複数回攻撃
+                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, hits: 2...2))
+            case .magic:      // 杖: 魔力依存
+                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, stat: .magic))
+            case .randomHits: // リボルバー: ランダムな回数攻撃
+                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, hits: 1...5))
+            case .debuff:     // 弓: デバフ(攻撃低下 or 速度低下を付与)
+                return BattleAction(name: skill.name, kind: .damage(
+                    pct: skill.power, target: .singleEnemy,
+                    inflict: Bool.random() ? .attackDown : .speedDown, inflictChance: 40))
+            }
+        }
+        return switch skill.kind {
         case .attack, .specialAttack:
             BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy))
         case .magic:
@@ -131,7 +152,7 @@ extension BattleEngine {
                  slots: [
                     BattleAction(name: "攻撃", kind: .damage(pct: 100, target: .singleEnemy)),
                     BattleAction(name: "イト吐き", kind: .debuffSpeed(pct: 20, target: .singleEnemy)),
-                    BattleAction(name: "毒噛みつき", kind: .damage(pct: 80, target: .singleEnemy, poisonChance: 50)),
+                    BattleAction(name: "毒噛みつき", kind: .damage(pct: 80, target: .singleEnemy, inflict: .poison, inflictChance: 50)),
                  ],
                  spriteKey: "spider")
         }),
@@ -167,11 +188,11 @@ extension BattleEngine {
         Unit(name: "ヒュドラ", isAlly: false, element: .dark,
              maxHP: 3200, hp: 3200, attack: 145, defense: 120, speed: 75, magic: 50,
              slots: [
-                BattleAction(name: "毒牙", kind: .damage(pct: 150, target: .singleEnemy, poisonChance: 30)),
+                BattleAction(name: "毒牙", kind: .damage(pct: 150, target: .singleEnemy, inflict: .poison, inflictChance: 30)),
                 BattleAction(name: "大蛇の尾", kind: .damage(pct: 90, target: .allEnemies)),
                 BattleAction(name: "再生", kind: .healFlat(amount: 250, defBuffPct: 20)),
              ],
-             ultimate: BattleAction(name: "九頭竜", kind: .damage(pct: 250, target: .allEnemies, poisonChance: 50)),
+             ultimate: BattleAction(name: "九頭竜", kind: .damage(pct: 250, target: .allEnemies, inflict: .poison, inflictChance: 50)),
              ultimateLoops: 2, spriteKey: "hydra",
              passives: [.lowHPRegen(thresholdPct: 50, amount: 120)])
     }

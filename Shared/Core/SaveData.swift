@@ -4,9 +4,15 @@ import Foundation
 struct SaveData: Codable {
     var coins = 0
     var materials = 0
+    /// 属性石(属性rawValue → 個数)。キャラの進化に使用
+    var elementStones: [String: Int] = [:]
+    /// ギルドチケット(その日のスカウトをもう一度)
+    var guildTickets = 0
     var characters: [PlayerCharacter] = []
     var otomos: [Otomo] = []
     var eggs: [Egg] = []
+    /// 孵化器にセット中の卵(孵化は自動ではなく手動でセット)
+    var incubatingEggID: UUID?
     var weapons: [Weapon] = []
     var armors: [Armor] = []
     /// パーティ編成(キャラ最大3 + オトモ最大2)
@@ -44,15 +50,19 @@ struct SaveData: Codable {
     var partyCharacters: [PlayerCharacter] { partyCharacterIDs.compactMap { character(id: $0) } }
     var partyOtomos: [Otomo] { partyOtomoIDs.compactMap { otomo(id: $0) } }
 
+    var incubatingEgg: Egg? { eggs.first { $0.id == incubatingEggID } }
+
+    func stoneCount(_ element: Element) -> Int { elementStones[element.rawValue] ?? 0 }
+
     /// 編成中の特殊支援キャラの職ID一覧(ダンジョン潜入時の特殊効果判定に使う)
     var partySupportJobIDs: Set<String> {
         Set(partyCharacters.filter { $0.job().category == .specialSupport }.map(\.jobID))
     }
 
-    /// 装備込みの実効ステータス
+    /// 装備込みの実効ステータス(武器は強化込み)
     func effectiveStats(of character: PlayerCharacter) -> BaseStats {
         var stats = character.grownStats
-        if let w = weapon(id: character.weaponID) { stats = stats + w.bonus }
+        if let w = weapon(id: character.weaponID) { stats = stats + w.upgradedBonus }
         for armorID in character.armorIDs {
             if let a = armor(id: armorID) {
                 stats = stats + a.bonus
@@ -86,8 +96,10 @@ struct SaveData: Codable {
         data.weapons = [weapon]
         data.partyCharacterIDs = [hero.id]
 
-        // 初期の卵をひとつ
-        data.eggs = [Egg(speciesID: "slime", rarity: .star1, obtainedAt: now, hatchSeconds: 300)]
+        // 初期の卵と少量の素材・属性石
+        data.eggs = [Egg(grade: .normal, obtainedAt: now)]
+        data.materials = 20
+        for element in Element.allCases { data.elementStones[element.rawValue] = 1 }
 
         data.shop.items = ItemFactory.randomShopItems(now: now)
         data.shop.nextRefresh = now.addingTimeInterval(TimeInterval(Int.random(in: 1800...7200)))

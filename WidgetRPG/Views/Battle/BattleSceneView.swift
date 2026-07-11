@@ -207,22 +207,36 @@ struct BattleUnitView: View {
 
     private var info: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                Text(unit.name)
-                    .font(.caption.bold())
-                    .foregroundStyle(unit.poisoned ? Palette.poison : Palette.textPrimary)
-                    .lineLimit(1)
-                if unit.poisoned {
-                    Text("毒")
-                        .font(.system(size: 8).bold())
-                        .padding(.horizontal, 4).padding(.vertical, 1)
-                        .background(Capsule().fill(Palette.poison))
-                        .foregroundStyle(.white)
+            Text(unit.name)
+                .font(.caption.bold())
+                .foregroundStyle(unit.hasAilment ? Palette.poison : Palette.textPrimary)
+                .lineLimit(1)
+            // 状態異常バッジ(毒・洗脳・火傷・逆光・弱体化・攻撃低下・速度低下)
+            if unit.hasAilment {
+                HStack(spacing: 2) {
+                    ForEach(unit.ailmentList, id: \.self) { ailment in
+                        Text(ailment.label)
+                            .font(.system(size: 7).bold())
+                            .padding(.horizontal, 3).padding(.vertical, 1)
+                            .background(Capsule().fill(badgeColor(ailment)))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
                 }
             }
             Text("HP \(unit.hp)/\(unit.maxHP)")
                 .font(.system(size: 9))
                 .foregroundStyle(Palette.textSecondary)
+        }
+    }
+
+    private func badgeColor(_ ailment: Ailment) -> Color {
+        switch ailment {
+        case .poison: Palette.poison
+        case .burn: Palette.danger
+        case .brainwash: Color(red: 0.85, green: 0.45, blue: 0.65)
+        case .reverse: Color(red: 0.40, green: 0.55, blue: 0.85)
+        case .weakness, .attackDown, .speedDown: Color(white: 0.45)
         }
     }
 

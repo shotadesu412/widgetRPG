@@ -52,26 +52,60 @@ final class GameViewModel: ObservableObject {
         data.shop.items.remove(at: index)
 
         switch item.kind {
-        case .egg:
-            data.eggs.append(ItemFactory.randomEgg())
-        case .weapon:
-            data.weapons.append(ItemFactory.randomWeapon(rarityBias: 10))
-        case .armor:
-            data.armors.append(ItemFactory.randomArmor(rarityBias: 10))
+        case .elementStone:
+            if let element = item.element {
+                data.elementStones[element.rawValue, default: 0] += item.amount
+            }
         case .material:
-            data.materials += Int.random(in: 3...8)
+            data.materials += item.amount
         case .coinPack:
             data.coins += Int.random(in: 50...300)
+        case .egg:
+            data.eggs.append(ItemFactory.makeEgg(grade: item.eggGrade ?? .normal))
+        case .weapon:
+            data.weapons.append(ItemFactory.randomWeapon(rarity: item.equipRarity))
+        case .armor:
+            data.armors.append(ItemFactory.randomArmor(rarity: item.equipRarity))
+        case .guildTicket:
+            data.guildTickets += 1
         }
+        save()
+    }
+
+    // MARK: - 装備強化(防具はパッシブ解放、武器はステータス強化)
+
+    func upgradeWeapon(_ weapon: Weapon) {
+        guard let index = data.weapons.firstIndex(where: { $0.id == weapon.id }),
+              weapon.canUpgrade else { return }
+        let cost = EquipmentUpgrade.materialCost(toLevel: weapon.upgradeLevel + 1)
+        guard data.materials >= cost else { return }
+        data.materials -= cost
+        data.weapons[index].upgradeLevel += 1
+        save()
+    }
+
+    func upgradeArmor(_ armor: Armor) {
+        guard let index = data.armors.firstIndex(where: { $0.id == armor.id }),
+              armor.canUpgrade else { return }
+        let cost = EquipmentUpgrade.materialCost(toLevel: armor.upgradeLevel + 1)
+        guard data.materials >= cost else { return }
+        data.materials -= cost
+        data.armors[index].upgradeLevel += 1
         save()
     }
 
     // MARK: - ギルド(スカウト)
 
-    /// 来訪者をスカウト。成功時は仲間に加わる
+    /// 本日のスカウトが可能か(未実施、またはギルドチケット所持)
+    var canScout: Bool { !data.guild.scoutedToday || data.guildTickets > 0 }
+
+    /// 来訪者をスカウト。成功時は仲間に加わる。2回目以降はギルドチケットを消費
     @discardableResult
     func scout(_ visitor: GuildVisitor) -> Bool {
-        guard !data.guild.scoutedToday else { return false }
+        if data.guild.scoutedToday {
+            guard data.guildTickets > 0 else { return false }
+            data.guildTickets -= 1
+        }
         data.guild.scoutedToday = true
 
         let success = Double.random(in: 0..<1) < data.guild.scoutChance
@@ -91,21 +125,38 @@ final class GameViewModel: ObservableObject {
         return success
     }
 
-    // MARK: - 卵・オトモ
+    // MARK: - 卵・オトモ(孵化は自動ではなく手動でセット)
 
+    /// 卵を孵化器にセットする(1個ずつ)。テイマー編成で孵化時間短縮
+    func startIncubation(_ egg: Egg) {
+        guard data.incubatingEggID == nil,
+              let index = data.eggs.firstIndex(where: { $0.id == egg.id }) else { return }
+        let hatchScale = data.partySupportJobIDs.contains("monster_tamer") ? 0.7 : 1.0
+        data.eggs[index].incubationStartedAt = Date()
+        data.eggs[index].hatchSeconds = egg.grade.hatchSeconds * hatchScale
+        data.incubatingEggID = egg.id
+        save()
+    }
+
+    /// 孵化が完了した卵からオトモを迎える
     func hatch(_ egg: Egg) {
         guard egg.isReady(),
               let index = data.eggs.firstIndex(where: { $0.id == egg.id }) else { return }
         data.eggs.remove(at: index)
+        if data.incubatingEggID == egg.id { data.incubatingEggID = nil }
         data.otomos.append(ItemFactory.hatch(egg))
         save()
     }
 
     // MARK: - キャラ編集
 
+    /// 進化にはキャラの属性に対応した属性石を1つ消費する
     func evolve(_ character: PlayerCharacter) {
+        let element = character.job().element
         guard character.canEvolve,
+              data.stoneCount(element) > 0,
               let index = data.characters.firstIndex(where: { $0.id == character.id }) else { return }
+        data.elementStones[element.rawValue, default: 1] -= 1
         data.characters[index].stage += 1
         // 進化でスキル・必殺技を習得
         let job = character.job()

@@ -43,16 +43,19 @@ struct CharacterDetailView: View {
                         .foregroundStyle(Palette.textSecondary)
 
                     if character.canEvolve {
+                        // 進化にはキャラの属性に対応した属性石が必要
+                        let stones = game.data.stoneCount(job.element)
                         Button {
                             game.evolve(character)
                         } label: {
-                            Text("進化する")
+                            Text("進化する(\(job.element.label)の石×1 / 所持\(stones))")
                                 .font(.subheadline.bold())
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 8)
-                                .background(Capsule().fill(Palette.accent))
-                                .foregroundStyle(Palette.background)
+                                .background(Capsule().fill(stones > 0 ? Palette.accent : Palette.panelBorder))
+                                .foregroundStyle(stones > 0 ? Palette.background : Palette.textSecondary)
                         }
+                        .disabled(stones == 0)
                     }
                 }
                 .frame(maxWidth: .infinity)

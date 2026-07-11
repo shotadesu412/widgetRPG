@@ -19,14 +19,54 @@ enum DamageStat: Hashable {
     case attackPlusMagic  // 攻撃力+魔力の合計
 }
 
+/// 状態異常。解除判定はかかったキャラの行動の終わりに行う
+enum Ailment: String, CaseIterable, Codable, Hashable {
+    case poison     // 毒: 現在HPの5%のダメージを行動ごとに受ける
+    case brainwash  // 洗脳: スロットが50%で通常攻撃に変わる
+    case burn       // 火傷: かかったキャラの攻撃力の25%のダメージを行動ごとに受ける
+    case reverse    // 逆光: スロットが逆に回る。1→3を跨いだら必殺ターンも1下がる
+    case weakness   // 弱体化: 被ダメージ20%アップ
+    case attackDown // 攻撃低下: 攻撃30%低下
+    case speedDown  // 速度低下: 速度30%低下
+
+    var label: String {
+        switch self {
+        case .poison: "毒"
+        case .brainwash: "洗脳"
+        case .burn: "火傷"
+        case .reverse: "逆光"
+        case .weakness: "弱体化"
+        case .attackDown: "攻撃低下"
+        case .speedDown: "速度低下"
+        }
+    }
+
+    /// 行動の終わりに解除される確率(%)
+    var cureChance: Int {
+        switch self {
+        case .poison: 20
+        case .brainwash: 40
+        case .burn: 30
+        case .reverse: 40
+        case .weakness: 30
+        case .attackDown: 30
+        case .speedDown: 40
+        }
+    }
+}
+
 /// 戦闘中の1行動。スキル・必殺技・通常攻撃を統一して表現する。
 struct BattleAction: Hashable {
     var name: String
     var kind: Kind
 
     enum Kind: Hashable {
-        /// ダメージ。pct=参照ステータスに対する%。poisonChance=毒付与確率(%)
-        case damage(pct: Int, target: ActionTarget, stat: DamageStat = .attack, poisonChance: Int = 0)
+        /// ダメージ。pct=参照ステータスに対する%。
+        /// critChance=会心率(%、2倍)。hits=ヒット回数(リボルバー等はランダム)。
+        /// inflict/inflictChance=付与する状態異常とその確率(%)
+        case damage(pct: Int, target: ActionTarget, stat: DamageStat = .attack,
+                    critChance: Int = 0, hits: ClosedRange<Int> = 1...1,
+                    inflict: Ailment? = nil, inflictChance: Int = 0)
         /// 術者の魔力ぶん回復
         case healByMagic(target: ActionTarget)
         /// 固定量回復(+任意で自身の防御を一定時間上昇)
@@ -130,12 +170,17 @@ final class BattleEngine: ObservableObject {
         var passives: [BattlePassive] = []
 
         // 状態
-        var poisoned = false
+        var ailments: Set<Ailment> = []
         var modifiers: [StatModifier] = []
         /// サクリファイス用: 供物の選定で記憶した対象
         var offeringTargetID: UUID?
         var transientState: SpriteState?
         var stateTimer: Double = 0
+
+        /// UI互換用(毒表示)
+        var poisoned: Bool { ailments.contains(.poison) }
+        var hasAilment: Bool { !ailments.isEmpty }
+        var ailmentList: [Ailment] { Ailment.allCases.filter { ailments.contains($0) } }
 
         // 演出用
         /// 行動中に足元へ出すスキル名
@@ -160,7 +205,11 @@ final class BattleEngine: ObservableObject {
             modifiers.filter { $0.stat == stat }.reduce(1.0) { $0 * $1.mul }
         }
 
-        var effectiveSpeed: Int { max(1, Int(Double(speed) * modMultiplier(.speed))) }
+        var effectiveSpeed: Int {
+            var value = Double(speed) * modMultiplier(.speed)
+            if ailments.contains(.speedDown) { value *= 0.7 } // 速度低下: 速度30%低下
+            return max(1, Int(value))
+        }
         var effectiveDefense: Int { max(0, Int(Double(defense) * modMultiplier(.defense))) }
     }
 
@@ -257,22 +306,24 @@ final class BattleEngine: ObservableObject {
         guard result == nil, var unit = findUnit(id: unitID), unit.isAlive else { return }
         unit.gauge = 0
 
-        // 1. 毒ダメージ(現在HPの5%)。20%で解除
-        if unit.poisoned {
+        // 1. 行動開始時の継続ダメージ(毒: 現在HPの5% / 火傷: 自分の攻撃力の25%)
+        if unit.ailments.contains(.poison) {
             let dmg = max(1, Int(Double(unit.hp) * 0.05))
             unit.hp = max(0, unit.hp - dmg)
             unit.floating = FloatingNumber(value: dmg, kind: .poison)
             appendLog("\(unit.name)は毒で\(dmg)ダメージ")
-            if Int.random(in: 0..<100) < 20 {
-                unit.poisoned = false
-                appendLog("\(unit.name)の毒が解けた")
-            }
-            if !unit.isAlive {
-                handleDeath(&unit)
-                updateUnit(unit)
-                checkEnd()
-                return
-            }
+        }
+        if unit.isAlive, unit.ailments.contains(.burn) {
+            let dmg = max(1, unit.attack * 25 / 100)
+            unit.hp = max(0, unit.hp - dmg)
+            unit.floating = FloatingNumber(value: dmg, kind: .poison)
+            appendLog("\(unit.name)は火傷で\(dmg)ダメージ")
+        }
+        if !unit.isAlive {
+            handleDeath(&unit)
+            updateUnit(unit)
+            checkEnd()
+            return
         }
 
         // 2. 低HP再生パッシブ
@@ -297,7 +348,12 @@ final class BattleEngine: ObservableObject {
             perform(ultimate, by: &unit)
             unit.loops = 0
         } else {
-            let action = unit.slots.isEmpty ? .normal : unit.slots[unit.slotIndex]
+            var action = unit.slots.isEmpty ? .normal : unit.slots[unit.slotIndex]
+            // 洗脳: スロットが50%で通常攻撃に変わる
+            if unit.ailments.contains(.brainwash), Int.random(in: 0..<100) < 50, action.kind != .normalAttack {
+                appendLog("\(unit.name)は洗脳されている……!")
+                action = .normal
+            }
             setActionLabel(action.name, on: &unit)
             setTransientState(action.spriteState, on: &unit)
             perform(action, by: &unit)
@@ -305,15 +361,38 @@ final class BattleEngine: ObservableObject {
             toggleAkumaSlot(action, on: &unit)
             // スロット発動回数で切れる補正(防御の構えなど)を減らす
             decrementSlotModifiers(on: &unit)
+            advanceSlot(on: &unit)
+        }
+
+        // 5. ターンの終わりに状態異常の解除判定
+        for ailment in unit.ailmentList where Int.random(in: 0..<100) < ailment.cureChance {
+            unit.ailments.remove(ailment)
+            appendLog("\(unit.name)の\(ailment.label)が解けた")
+        }
+
+        updateUnit(unit)
+        checkEnd()
+    }
+
+    /// スロットの進行。逆光中は逆回りし、スロット1→3を跨いだら必殺ターンも1下がる
+    private func advanceSlot(on unit: inout Unit) {
+        guard !unit.slots.isEmpty else { return }
+        if unit.ailments.contains(.reverse) {
+            unit.slotIndex -= 1
+            if unit.slotIndex < 0 {
+                unit.slotIndex = unit.slots.count - 1
+                if unit.loops > 0 {
+                    unit.loops -= 1
+                    appendLog("\(unit.name)のスロットが逆流……必殺ターンが遠のいた")
+                }
+            }
+        } else {
             unit.slotIndex += 1
             if unit.slotIndex >= unit.slots.count {
                 unit.slotIndex = 0
                 unit.loops += 1
             }
         }
-
-        updateUnit(unit)
-        checkEnd()
     }
 
     private func toggleAkumaSlot(_ action: BattleAction, on unit: inout Unit) {
@@ -346,10 +425,11 @@ final class BattleEngine: ObservableObject {
         switch action.kind {
         case .normalAttack:
             dealToTargets(from: &unit, pct: 100, target: .singleEnemy, stat: .attack,
-                          poisonChance: 0, label: "攻撃")
-        case let .damage(pct, target, stat, poisonChance):
+                          critChance: 0, hits: 1...1, inflict: nil, inflictChance: 0, label: "攻撃")
+        case let .damage(pct, target, stat, critChance, hits, inflict, inflictChance):
             dealToTargets(from: &unit, pct: pct, target: target, stat: stat,
-                          poisonChance: poisonChance, label: action.name)
+                          critChance: critChance, hits: hits,
+                          inflict: inflict, inflictChance: inflictChance, label: action.name)
         case let .healByMagic(target):
             for id in resolveTargets(target, from: unit) {
                 heal(id: id, amount: unit.magic)
@@ -398,39 +478,47 @@ final class BattleEngine: ObservableObject {
     }
 
     private func dealToTargets(from unit: inout Unit, pct: Int, target: ActionTarget,
-                               stat: DamageStat, poisonChance: Int, label: String) {
-        let targets = resolveTargets(target, from: unit)
-        guard !targets.isEmpty else { return }
+                               stat: DamageStat, critChance: Int, hits: ClosedRange<Int>,
+                               inflict: Ailment?, inflictChance: Int, label: String) {
         let value: Int
         switch stat {
         case .attack: value = effectiveAttack(of: unit)
         case .magic: value = unit.magic
         case .attackPlusMagic: value = effectiveAttack(of: unit) + unit.magic
         }
-        for id in targets {
-            dealDamage(fromName: unit.name, attackStat: value, pct: pct,
-                       element: unit.element, to: id, poisonChance: poisonChance, label: label)
+        // ヒット回数(双剣・リボルバー等)。ランダム対象は毎ヒット抽選し直す
+        let hitCount = Int.random(in: hits)
+        for _ in 0..<hitCount {
+            let targets = resolveTargets(target, from: unit)
+            guard !targets.isEmpty else { return }
+            for id in targets {
+                dealDamage(fromName: unit.name, attackStat: value, pct: pct,
+                           element: unit.element, to: id, critChance: critChance,
+                           inflict: inflict, inflictChance: inflictChance, label: label)
+            }
         }
     }
 
     // MARK: - 悪魔の固有行動
 
     private func performChaos(from unit: Unit, chance: Int, spdDown: Int, atkDown: Int, turns: Int, label: String) {
+        // ランダムな数の敵に、毒・速度低下・攻撃低下をそれぞれ確率で付与(状態異常として扱う)
         let foes = (unit.isAlly ? enemies : allies).filter(\.isAlive)
         guard !foes.isEmpty else { return }
-        let n = Int.random(in: 1...foes.count) // ランダムな数の敵
+        let n = Int.random(in: 1...foes.count)
         appendLog("\(unit.name)の\(label)! \(n)体を狙う")
         for foe in foes.shuffled().prefix(n) {
             guard var t = findUnit(id: foe.id) else { continue }
-            var hit = false
-            if Int.random(in: 0..<100) < chance, !t.poisoned { t.poisoned = true; hit = true }
-            if Int.random(in: 0..<100) < chance {
-                t.modifiers.append(StatModifier(stat: .speed, mul: 1.0 - Double(spdDown) / 100, expiry: .turns(turns), turnsLeft: turns)); hit = true
+            var inflicted: [Ailment] = []
+            for ailment in [Ailment.poison, .speedDown, .attackDown]
+            where Int.random(in: 0..<100) < chance && !t.ailments.contains(ailment) {
+                t.ailments.insert(ailment)
+                inflicted.append(ailment)
             }
-            if Int.random(in: 0..<100) < chance {
-                t.modifiers.append(StatModifier(stat: .attack, mul: 1.0 - Double(atkDown) / 100, expiry: .turns(turns), turnsLeft: turns)); hit = true
+            if !inflicted.isEmpty {
+                appendLog("\(t.name)は\(inflicted.map(\.label).joined(separator: "・"))状態になった!")
+                updateUnit(t)
             }
-            if hit { updateUnit(t) }
         }
     }
 
@@ -461,14 +549,14 @@ final class BattleEngine: ObservableObject {
         unit.magic += target.magic * gainPct / 100
         // 対象を戦闘不能に
         target.hp = 0
-        target.poisoned = false
+        target.ailments = []
         updateUnit(target)
         appendLog("\(unit.name)の\(label)! \(target.name)を捧げ、力を得た")
         unit.offeringTargetID = nil
         checkEnd()
     }
 
-    /// 偶数巡目パッシブ等を反映した実効攻撃力
+    /// 偶数巡目パッシブ・攻撃低下などを反映した実効攻撃力
     private func effectiveAttack(of unit: Unit) -> Int {
         var value = Double(unit.attack) * unit.modMultiplier(.attack)
         for passive in unit.passives {
@@ -476,25 +564,32 @@ final class BattleEngine: ObservableObject {
                 value *= mul
             }
         }
+        if unit.ailments.contains(.attackDown) { value *= 0.7 } // 攻撃低下: 攻撃30%低下
         return Int(value)
     }
 
     private func dealDamage(fromName: String, attackStat: Int, pct: Int, element: Element,
-                            to targetID: UUID, poisonChance: Int, label: String) {
+                            to targetID: UUID, critChance: Int,
+                            inflict: Ailment?, inflictChance: Int, label: String) {
         guard var target = findUnit(id: targetID), target.isAlive else { return }
         // 敵は防御ステータスを持たない(味方のみ防御でダメージ軽減)
         let defense = target.isAlly ? target.effectiveDefense : 0
         let raw = Double(attackStat) * Double(pct) / 100.0 - Double(defense) / 2.0
-        let damage = max(1, Int(raw * element.multiplier(against: target.element)))
+        var damage = max(1, Int(raw * element.multiplier(against: target.element)))
+        // クリティカル(短剣など): 2倍
+        let isCrit = critChance > 0 && Int.random(in: 0..<100) < critChance
+        if isCrit { damage *= 2 }
+        // 弱体化: 被ダメージ20%アップ
+        if target.ailments.contains(.weakness) { damage = Int(Double(damage) * 1.2) }
         target.hp = max(0, target.hp - damage)
         target.floating = FloatingNumber(value: damage, kind: .damage)
-        appendLog("\(fromName)の\(label) → \(target.name)に\(damage)ダメージ")
+        appendLog("\(fromName)の\(label) → \(target.name)に\(damage)ダメージ\(isCrit ? "(会心!)" : "")")
 
         if target.isAlive {
             setTransientState(.hurt, on: &target)
-            if poisonChance > 0, !target.poisoned, Int.random(in: 0..<100) < poisonChance {
-                target.poisoned = true
-                appendLog("\(target.name)は毒におかされた!")
+            if let inflict, !target.ailments.contains(inflict), Int.random(in: 0..<100) < inflictChance {
+                target.ailments.insert(inflict)
+                appendLog("\(target.name)は\(inflict.label)状態になった!")
             }
         } else {
             handleDeath(&target)
@@ -506,7 +601,7 @@ final class BattleEngine: ObservableObject {
         if target.reviveChance > 0, Int.random(in: 0..<100) < target.reviveChance {
             target.hp = target.maxHP / 3
             target.reviveChance = 0
-            target.poisoned = false
+            target.ailments = []
             appendLog("\(target.name)は倒れたが……蘇った!!")
         } else {
             appendLog("\(target.name)を倒した!")

@@ -29,6 +29,17 @@ enum SkillKind: String, Codable, CaseIterable {
     }
 }
 
+/// 武器種由来のスキル効果傾向(戦闘アクションへの変換ヒント)
+enum WeaponEffect: String, Codable, Hashable {
+    case single     // 剣: 単体
+    case aoe        // 大剣: 全体攻撃
+    case crit       // 短剣: クリティカル
+    case multiHit   // 双剣: 複数回攻撃
+    case magic      // 杖: 魔力依存
+    case randomHits // リボルバー: ランダムな回数攻撃
+    case debuff     // 弓: デバフ
+}
+
 struct Skill: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
@@ -36,6 +47,8 @@ struct Skill: Identifiable, Codable, Hashable {
     /// 威力・効果量(攻撃力/魔力に対する百分率)
     var power: Int
     var element: Element?
+    /// 武器スキルの場合の効果傾向
+    var weaponEffect: WeaponEffect?
 }
 
 /// 必殺技(スロット一定周回で発動)

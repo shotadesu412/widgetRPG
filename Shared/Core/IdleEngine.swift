@@ -49,47 +49,51 @@ enum IdleEngine {
         let support = data.partySupportJobIDs
         let coinScale = support.contains("thief") ? 1.5 : 1.0
         let materialScale = support.contains("miner") ? 1.6 : 1.0
-        let weaponScale = support.contains("explorer") ? 1.6 : 1.0
-        let hatchScale = support.contains("monster_tamer") ? 0.7 : 1.0
+        let equipScale = support.contains("explorer") ? 1.6 : 1.0
+
+        // メインストーリーの進行度(獲得量に影響)
+        let storyProgress = data.mainProgress.values.reduce(0, +)
+
+        // 潜入からの通算分数(10分周期の判定に使う)
+        let baseMinutes = Int(run.lastProcessed.timeIntervalSince(run.enteredAt) / 60)
 
         for minute in 1...elapsedMinutes {
             let tickDate = run.lastProcessed.addingTimeInterval(TimeInterval(minute * 60))
 
-            // コインと経験値は毎分たまる
-            run.collectedCoins += Int(Double(Int.random(in: 2...6) + dungeon.recommendedLevel / 2) * coinScale)
+            // 経験値は毎分たまる
             run.collectedExp += Int.random(in: 4...10) + dungeon.recommendedLevel
 
-            // 素材
-            if Double.random(in: 0..<1) < 0.20 * materialScale {
-                let amount = Int.random(in: 1...3)
-                run.collectedMaterials += amount
-                appendLog(&run, date: tickDate, message: "素材を\(amount)個拾った")
-            }
-
-            // 装備(装備ダンジョンは高確率)
-            let equipChance = dungeon.kind == .equipment ? 0.15 : 0.03
-            if Double.random(in: 0..<1) < equipChance * weaponScale {
-                if Bool.random() {
-                    let weapon = ItemFactory.randomWeapon()
-                    data.weapons.append(weapon)
-                    appendLog(&run, date: tickDate, message: "\(weapon.name)を発見した!")
+            // アイテムは10分ごとに1回獲得
+            // 獲得率: 素材40% / コイン40% / 装備10% / 卵10%
+            if (baseMinutes + minute) % 10 == 0 {
+                let roll = Double.random(in: 0..<100)
+                if roll < 40 {
+                    // 素材(獲得量はメインストーリーの進行度依存)
+                    let amount = Int(Double(Int.random(in: 2...4) + storyProgress / 3) * materialScale)
+                    run.collectedMaterials += amount
+                    appendLog(&run, date: tickDate, message: "素材を\(amount)個拾った")
+                } else if roll < 80 {
+                    // コイン(獲得量はメインストーリーの進行度依存)
+                    let amount = Int(Double(Int.random(in: 30...60) + storyProgress * 8) * coinScale)
+                    run.collectedCoins += amount
+                    appendLog(&run, date: tickDate, message: "コインを\(amount)枚拾った")
+                } else if roll < 80 + 10 * equipScale {
+                    // 装備(星1 80% / 星2 17% / 星3 3%)
+                    if Bool.random() {
+                        let weapon = ItemFactory.randomWeapon()
+                        data.weapons.append(weapon)
+                        appendLog(&run, date: tickDate, message: "\(weapon.name)\(weapon.rarity.stars)を発見した!")
+                    } else {
+                        let armor = ItemFactory.randomArmor()
+                        data.armors.append(armor)
+                        appendLog(&run, date: tickDate, message: "\(armor.name)\(armor.rarity.stars)を発見した!")
+                    }
                 } else {
-                    let armor = ItemFactory.randomArmor()
-                    data.armors.append(armor)
-                    appendLog(&run, date: tickDate, message: "\(armor.name)を発見した!")
+                    // 卵(普通80% / 珍しい17% / 伝説3%)
+                    let egg = ItemFactory.makeEgg(grade: ItemFactory.rollEggGrade(), now: tickDate)
+                    data.eggs.append(egg)
+                    appendLog(&run, date: tickDate, message: "\(egg.grade.label)を見つけた……何かが眠っている")
                 }
-            }
-
-            // 卵(卵ダンジョンは高確率。伝説の霊峰は伝説の卵も出る)
-            let eggChance = dungeon.kind == .egg ? 0.08 : 0.01
-            if Double.random(in: 0..<1) < eggChance {
-                let egg = ItemFactory.randomEgg(
-                    includeLegendary: dungeon.id == "egg_legendary",
-                    hatchTimeScale: hatchScale,
-                    now: tickDate
-                )
-                data.eggs.append(egg)
-                appendLog(&run, date: tickDate, message: "卵を見つけた……何かが眠っている")
             }
 
             // ボス発見判定(確率、または一定時間経過で確実に発見)
@@ -137,13 +141,10 @@ enum IdleEngine {
         if bossDefeated {
             if dungeon.kind == .main, let arc = dungeon.arc, let map = dungeon.mapIndex {
                 data.mainProgress[arc.rawValue] = max(data.mainProgress[arc.rawValue] ?? 0, map)
-                // 最終ボス討伐で神話キャラの卵が確率ドロップ
-                if map == MainArc.mapsPerArc, Double.random(in: 0..<1) < 0.3 {
-                    let speciesID = mythicSpeciesID(for: arc)
-                    if let speciesID {
-                        data.eggs.append(Egg(speciesID: speciesID, rarity: .star3,
-                                             obtainedAt: Date(), hatchSeconds: 86400))
-                    }
+                // 最終ボス討伐で神話キャラの卵が確率ドロップ(中身確定の伝説の卵)
+                if map == MainArc.mapsPerArc, Double.random(in: 0..<1) < 0.3,
+                   let speciesID = mythicSpeciesID(for: arc) {
+                    data.eggs.append(ItemFactory.makeEgg(grade: .legendary, fixedSpeciesID: speciesID))
                 }
             }
         }

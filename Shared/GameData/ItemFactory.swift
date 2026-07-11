@@ -1,28 +1,44 @@
 import Foundation
 
-/// 武器・防具・卵などのランダム生成
+/// 武器・防具・卵・ショップ商品などのランダム生成
 enum ItemFactory {
 
     // MARK: - 武器
 
     private static let weaponNamePrefixes = ["錆びた", "鉄の", "無銘の", "輝く", "呪われた", "月光の", "深淵の"]
 
-    private static let weaponSkillNames: [WeaponType: [String]] = [
-        .sword: ["強斬り", "十字斬り"],
-        .greatsword: ["兜割り", "大回転斬り"],
-        .dagger: ["急所突き", "毒塗りの刃"],
-        .twinBlade: ["二連撃", "旋風刃"],
-        .staff: ["魔力弾", "属性爆発"],
-        .revolver: ["乱れ撃ち", "狙撃"],
-        .glove: ["連打", "気孔弾"],
-        .bow: ["貫通の矢", "矢の雨"],
-    ]
-
-    static func randomWeapon(rarityBias: Int = 0) -> Weapon {
-        let type = WeaponType.allCases.randomElement()!
-        let rarity = randomRarity(bias: rarityBias)
-        let element = Bool.random() ? Element.allCases.randomElement() : nil
+    /// 武器種ごとのスキル(名前と効果傾向)
+    private static func weaponSkill(for type: WeaponType, rarity: Rarity, element: Element?) -> Skill {
         let r = Double(rarity.rawValue)
+        switch type {
+        case .sword:
+            return Skill(name: "強斬り", kind: .attack, power: Int(130 * (1.0 + r * 0.15)),
+                         element: element, weaponEffect: .single)
+        case .greatsword:
+            return Skill(name: "大回転斬り", kind: .attack, power: Int(90 * (1.0 + r * 0.15)),
+                         element: element, weaponEffect: .aoe)
+        case .dagger:
+            return Skill(name: "急所突き", kind: .attack, power: Int(100 * (1.0 + r * 0.15)),
+                         element: element, weaponEffect: .crit)
+        case .twinBlade:
+            return Skill(name: "二連撃", kind: .attack, power: Int(70 * (1.0 + r * 0.15)),
+                         element: element, weaponEffect: .multiHit)
+        case .staff:
+            return Skill(name: "魔力弾", kind: .magic, power: Int(130 * (1.0 + r * 0.15)),
+                         element: element, weaponEffect: .magic)
+        case .revolver:
+            return Skill(name: "乱れ撃ち", kind: .attack, power: Int(45 * (1.0 + r * 0.15)),
+                         element: element, weaponEffect: .randomHits)
+        case .bow:
+            return Skill(name: "狙い撃ち", kind: .debuff, power: Int(80 * (1.0 + r * 0.15)),
+                         element: element, weaponEffect: .debuff)
+        }
+    }
+
+    static func randomWeapon(rarity: Rarity? = nil) -> Weapon {
+        let type = WeaponType.allCases.randomElement()!
+        let rarity = rarity ?? rollEquipmentRarity()
+        let element = Bool.random() ? Element.allCases.randomElement() : nil
 
         // 同じ武器でも個体ごとにステータスが少し異なる
         let bonus = BaseStats(
@@ -34,18 +50,12 @@ enum ItemFactory {
         )
 
         // 武器スキルは1〜2個、ランダムな位置に付与(スロット3個想定の位置0〜2)
-        let names = weaponSkillNames[type] ?? ["一撃"]
         let skillCount = Int.random(in: 1...2)
         var positions: [Int: Skill] = [:]
         var slots = Array(0..<3).shuffled()
-        for i in 0..<skillCount {
+        for _ in 0..<skillCount {
             let pos = slots.removeFirst()
-            positions[pos] = Skill(
-                name: names[i % names.count],
-                kind: type == .staff ? .magic : .attack,
-                power: Int(100 * (1.0 + r * 0.2)),
-                element: element
-            )
+            positions[pos] = weaponSkill(for: type, rarity: rarity, element: element)
         }
 
         let name = "\(weaponNamePrefixes.randomElement()!)\(type.label)"
@@ -57,9 +67,9 @@ enum ItemFactory {
 
     private static let armorNamePrefixes = ["ぼろの", "革の", "騎士の", "隠者の", "王家の", "夜闇の"]
 
-    static func randomArmor(rarityBias: Int = 0) -> Armor {
+    static func randomArmor(rarity: Rarity? = nil) -> Armor {
         let type = ArmorType.allCases.randomElement()!
-        let rarity = randomRarity(bias: rarityBias)
+        let rarity = rarity ?? rollEquipmentRarity()
         let weight = max(1, type.baseWeight + Int.random(in: -5...5))
 
         // 重量が高いほど防御・HPの基礎上昇値が高い
@@ -71,10 +81,13 @@ enum ItemFactory {
             magic: type == .robe ? 4 * rarity.rawValue : 0
         )
 
-        // 強いパッシブは低重量の防具(指輪・仮面)に割り振られる
-        let pool = PassiveKind.allCases.filter { weight <= 15 ? true : !$0.isStrong }
+        // 星と同じ数のパッシブを防具種の傾向から付与(強化で順に解放)
+        let pool = type.passivePool
+        let valueScale = type == .ring ? 1 : 2 // 指輪は微量
         let passives = (0..<rarity.rawValue).compactMap { _ in
-            pool.randomElement().map { Passive(kind: $0, value: Int.random(in: 5...20) * rarity.rawValue) }
+            pool.randomElement().map {
+                Passive(kind: $0, value: Int.random(in: 4...12) * valueScale * rarity.rawValue)
+            }
         }
 
         let name = "\(armorNamePrefixes.randomElement()!)\(type.label)"
@@ -82,20 +95,46 @@ enum ItemFactory {
                      bonus: bonus, passives: passives)
     }
 
-    // MARK: - 卵
-
-    static func randomEgg(includeLegendary: Bool = false, hatchTimeScale: Double = 1.0, now: Date = Date()) -> Egg {
-        let species = OtomoCatalog.randomSpecies(includeLegendary: includeLegendary)
-        let rarity: Rarity = species.canEvolve ? randomRarity(bias: 0) : .star3
-        // 強い個体(高レア)ほど孵化時間が長い
-        let seconds = species.baseHatchSeconds * (1.0 + Double(rarity.rawValue - 1) * 0.5) * hatchTimeScale
-        return Egg(speciesID: species.id, rarity: rarity, obtainedAt: now, hatchSeconds: seconds)
+    /// 装備の星の抽選(基本: 星1 80% / 星2 17% / 星3 3%)
+    static func rollEquipmentRarity() -> Rarity {
+        let x = Double.random(in: 0..<100)
+        if x < 80 { return .star1 }
+        if x < 97 { return .star2 }
+        return .star3
     }
 
-    /// 卵からオトモを孵化させる
+    // MARK: - 卵
+
+    /// 卵の種類の抽選(基本: 普通80% / 珍しい17% / 伝説3%)
+    static func rollEggGrade() -> EggGrade {
+        let x = Double.random(in: 0..<100)
+        if x < 80 { return .normal }
+        if x < 97 { return .uncommon }
+        return .legendary
+    }
+
+    static func makeEgg(grade: EggGrade, fixedSpeciesID: String? = nil, now: Date = Date()) -> Egg {
+        Egg(grade: grade, fixedSpeciesID: fixedSpeciesID, obtainedAt: now)
+    }
+
+    /// 卵からオトモを孵化させる。星・種族・個体値は孵化時に確定する
     static func hatch(_ egg: Egg) -> Otomo {
-        let species = OtomoCatalog.species(id: egg.speciesID)
-        var otomo = Otomo(speciesID: egg.speciesID, rarity: egg.rarity)
+        let rarity = egg.grade.rollRarity()
+
+        let species: OtomoSpecies
+        if let fixed = egg.fixedSpeciesID {
+            species = OtomoCatalog.species(id: fixed)
+        } else if egg.grade == .legendary {
+            let pool = OtomoCatalog.all.filter { $0.category == .legendary }
+            species = pool.randomElement() ?? OtomoCatalog.all[1]
+        } else {
+            let pool = OtomoCatalog.all.filter { $0.category != .legendary && $0.category != .mythic }
+            species = pool.randomElement() ?? OtomoCatalog.all[1]
+        }
+
+        var otomo = Otomo(speciesID: species.id, rarity: rarity)
+        // 個体値: 星1・2は完全ランダム、星3はプラス寄り。伝説の卵は優遇
+        otomo.ivs = IndividualValues.roll(rarity: rarity, favored: egg.grade == .legendary)
         // キャラクタースロットにランダムでスキルが付与されている
         otomo.skills = [
             Skill(name: "\(species.name)の牙", kind: .attack, power: 100, element: species.element)
@@ -107,44 +146,69 @@ enum ItemFactory {
         return otomo
     }
 
-    // MARK: - ショップ
+    // MARK: - ショップ(枠ごとに 基本60% / やや珍しい39% / 低確率1%)
 
     static func randomShopItems(now: Date = Date()) -> [ShopItem] {
-        (0..<ShopState.itemCount).map { _ in
-            let kind = ShopItemKind.allCases.randomElement()!
-            let price: Int
-            let name: String
-            let detail: String
-            switch kind {
-            case .egg:
-                price = Int.random(in: 200...800)
-                name = "怪しい卵"
-                detail = "何が生まれるかは孵化してのお楽しみ"
-            case .weapon:
-                price = Int.random(in: 150...600)
-                name = "武器くじ"
-                detail = "ランダムな武器を1つ入手"
-            case .armor:
-                price = Int.random(in: 150...600)
-                name = "防具くじ"
-                detail = "ランダムな防具を1つ入手"
-            case .material:
-                price = Int.random(in: 50...200)
-                name = "強化素材の束"
-                detail = "武器や拠点の強化に使う素材"
-            case .coinPack:
-                price = Int.random(in: 80...150)
-                name = "小さなコイン袋"
-                detail = "開けるとコインが少し増える(気がする)"
-            }
-            return ShopItem(kind: kind, name: name, price: price, detail: detail)
-        }
+        (0..<ShopState.itemCount).map { _ in shopItem(tier: ShopTier.roll()) }
     }
 
-    private static func randomRarity(bias: Int) -> Rarity {
-        let roll = Int.random(in: 0..<100) + bias
-        if roll >= 95 { return .star3 }
-        if roll >= 70 { return .star2 }
-        return .star1
+    private static func shopItem(tier: ShopTier) -> ShopItem {
+        switch tier {
+        case .basic:
+            switch Int.random(in: 0..<4) {
+            case 0:
+                let element = Element.allCases.randomElement()!
+                return ShopItem(tier: tier, kind: .elementStone,
+                                name: "\(element.label)の石", price: Int.random(in: 120...200),
+                                detail: "\(element.label)属性キャラの進化に使う", element: element)
+            case 1:
+                return ShopItem(tier: tier, kind: .material,
+                                name: "強化素材の束", price: Int.random(in: 80...150),
+                                detail: "装備の強化に使う素材×5", amount: 5)
+            case 2:
+                return ShopItem(tier: tier, kind: .egg,
+                                name: EggGrade.normal.label, price: Int.random(in: 250...400),
+                                detail: "孵化に2時間。何が生まれるかはお楽しみ", eggGrade: .normal)
+            default:
+                return ShopItem(tier: tier, kind: .coinPack,
+                                name: "小さなコイン袋", price: Int.random(in: 80...150),
+                                detail: "開けるとコインが少し増える(気がする)")
+            }
+        case .uncommon:
+            switch Int.random(in: 0..<3) {
+            case 0:
+                let element = Element.allCases.randomElement()!
+                return ShopItem(tier: tier, kind: .elementStone,
+                                name: "\(element.label)の石×3", price: Int.random(in: 300...450),
+                                detail: "\(element.label)属性キャラの進化に使う", element: element, amount: 3)
+            case 1:
+                return ShopItem(tier: tier, kind: .material,
+                                name: "強化素材の大束", price: Int.random(in: 200...320),
+                                detail: "装備の強化に使う素材×15", amount: 15)
+            default:
+                return ShopItem(tier: tier, kind: .egg,
+                                name: EggGrade.uncommon.label, price: Int.random(in: 700...1000),
+                                detail: "孵化に5時間。星2以上が出やすい", eggGrade: .uncommon)
+            }
+        case .lowChance:
+            switch Int.random(in: 0..<4) {
+            case 0:
+                return ShopItem(tier: tier, kind: .guildTicket,
+                                name: "ギルドチケット", price: Int.random(in: 400...600),
+                                detail: "その日のスカウトをもう一度行える")
+            case 1:
+                return ShopItem(tier: tier, kind: .armor,
+                                name: "星3防具くじ", price: Int.random(in: 1000...1500),
+                                detail: "星3の防具がランダムで1つ", equipRarity: .star3)
+            case 2:
+                return ShopItem(tier: tier, kind: .weapon,
+                                name: "星3武器くじ", price: Int.random(in: 1000...1500),
+                                detail: "星3の武器がランダムで1つ", equipRarity: .star3)
+            default:
+                return ShopItem(tier: tier, kind: .egg,
+                                name: EggGrade.legendary.label, price: Int.random(in: 1800...2600),
+                                detail: "孵化に10時間。個体値が優遇される", eggGrade: .legendary)
+            }
+        }
     }
 }
