@@ -112,7 +112,7 @@ struct OtomoView: View {
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 10)], spacing: 10) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                     ForEach(game.data.otomos) { otomo in
                         NavigationLink(value: otomo.id) {
                             OtomoCard(otomo: otomo)
@@ -127,22 +127,23 @@ struct OtomoView: View {
     }
 }
 
-/// 一覧カード(イラスト+名前)
+/// 一覧カード(星+イラスト+名前)
 struct OtomoCard: View {
     let otomo: Otomo
 
     var body: some View {
-        VStack(spacing: 6) {
-            CharacterSpriteView(spriteKey: otomo.speciesID, pixelSize: 4, height: 72)
-                .frame(height: 72)
+        VStack(spacing: 5) {
+            StarsView(rarity: otomo.rarity)
+            CharacterSpriteView(spriteKey: otomo.speciesID, pixelSize: 4, height: 52)
+                .frame(height: 52)
             Text(otomo.displayName)
-                .font(.caption.bold())
+                .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(Palette.textPrimary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .padding(.horizontal, 6)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 3)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Palette.background)

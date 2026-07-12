@@ -49,6 +49,12 @@ struct HomeView: View {
             .sheet(isPresented: $showInventory) {
                 InventoryView()
             }
+            .onAppear {
+                // 開発用: DEV_INVENTORY=1 で持ち物を自動表示(スクショ確認用)
+                if ProcessInfo.processInfo.environment["DEV_INVENTORY"] == "1" {
+                    showInventory = true
+                }
+            }
             .fullScreenCover(isPresented: $showDevBattle) {
                 DevBattleView()
                     .preferredColorScheme(.dark)

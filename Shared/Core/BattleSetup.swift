@@ -227,7 +227,7 @@ extension BattleEngine {
                  ultimate: BattleAction(name: "切断", kind: .damage(pct: 300, target: .allEnemies)),
                  ultimateLoops: 2, spriteKey: "swordsman", passives: [.evenLoopAttack(mul: 1.1)])
             unit.isMainCharacter = true
-            unit.weaponInfo = (icon: "sword.fill", name: "星の剣 ★★")
+            unit.weaponInfo = (icon: "figure.fencing", name: "星の剣 ★★")
             unit.armorInfo = (icon: "shield.fill", name: "丈夫な鎧 ★★")
             unit.extraPassiveLabels = ["偶数巡目の攻撃1.1倍(丈夫な鎧)"]
             return unit

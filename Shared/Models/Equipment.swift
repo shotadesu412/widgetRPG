@@ -47,7 +47,7 @@ enum WeaponType: String, Codable, CaseIterable, Identifiable {
 
     var symbolName: String {
         switch self {
-        case .sword, .greatsword: "sword.fill"
+        case .sword, .greatsword: "figure.fencing"
         case .dagger, .twinBlade: "scissors"
         case .staff: "wand.and.stars"
         case .revolver: "target"

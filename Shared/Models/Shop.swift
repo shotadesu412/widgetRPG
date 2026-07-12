@@ -38,7 +38,7 @@ enum ShopItemKind: String, Codable, CaseIterable {
         case .material: "cube.fill"
         case .coinPack: "bag.fill"
         case .egg: "oval.portrait.fill"
-        case .weapon: "sword.fill"
+        case .weapon: "figure.fencing"
         case .armor: "shield.fill"
         case .guildTicket: "ticket.fill"
         }

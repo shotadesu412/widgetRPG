@@ -175,7 +175,7 @@ struct BattleQuickDetailView: View {
             Text("装備")
                 .font(.caption.bold())
                 .foregroundStyle(Palette.accent)
-            equipmentRow(icon: unit.weaponInfo?.icon ?? "sword.fill",
+            equipmentRow(icon: unit.weaponInfo?.icon ?? "figure.fencing",
                          name: unit.weaponInfo?.name ?? "武器なし",
                          empty: unit.weaponInfo == nil)
             equipmentRow(icon: unit.armorInfo?.icon ?? "shield.fill",

@@ -99,6 +99,13 @@ struct SaveData: Codable {
         data.materials = 20
         for element in Element.allCases { data.elementStones[element.rawValue] = 1 }
 
+        // 開発用: DEV_RICH=1 で装備・素材を多めに持った状態で開始(UI確認用)
+        if ProcessInfo.processInfo.environment["DEV_RICH"] == "1" {
+            for _ in 0..<7 { data.weapons.append(ItemFactory.randomWeapon()) }
+            for _ in 0..<8 { data.armors.append(ItemFactory.randomArmor()) }
+            data.materials += 200
+        }
+
         data.shop.items = ItemFactory.randomShopItems(now: now)
         data.shop.nextRefresh = now.addingTimeInterval(TimeInterval(Int.random(in: 1800...7200)))
         data.guild.visitors = IdleEngine.makeVisitors()

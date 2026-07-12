@@ -199,161 +199,16 @@ struct CharacterDetailView: View {
         }
     }
 
-    // MARK: - 装備
+    // MARK: - 装備(横4グリッド。タップで装備、長押しで詳細)
 
     private func equipmentSection(_ character: PlayerCharacter) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("装備")
                 .font(.headline)
                 .foregroundStyle(Palette.accent)
-
-            // 武器
-            Menu {
-                Button("外す") { game.equipWeapon(nil, to: character) }
-                ForEach(game.data.weapons) { weapon in
-                    Button("\(weapon.name) \(weapon.rarity.stars)") {
-                        game.equipWeapon(weapon, to: character)
-                    }
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "sword.fill")
-                        .foregroundStyle(Palette.accent)
-                    Text(game.data.weapon(id: character.weaponID)?.name ?? "武器なし")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.textPrimary)
-                    Spacer()
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(Palette.textSecondary)
-                }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
-            }
-
-            // 装備中の武器の詳細(上昇値・スロットスキルの中身)
-            if let weapon = game.data.weapon(id: character.weaponID) {
-                weaponDetail(weapon)
-            }
-
-            // 防具(1個のみ装備)
-            Text("防具は1個だけ装備できる(重量が高いほど守りは固いが、素早さが下がる)")
-                .font(.caption2)
-                .foregroundStyle(Palette.textSecondary)
-            Menu {
-                Button("外す") { game.equipArmor(nil, to: character) }
-                ForEach(game.data.armors) { armor in
-                    Button("\(armor.name) \(armor.rarity.stars) 重量\(armor.weight)") {
-                        game.equipArmor(armor, to: character)
-                    }
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "shield.fill")
-                        .foregroundStyle(Palette.accent)
-                    Text(game.data.armor(id: character.armorID)?.name ?? "防具なし")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.textPrimary)
-                    Spacer()
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(Palette.textSecondary)
-                }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
-            }
-
-            // 装備中の防具の詳細(上昇値・パッシブスキル)
-            if let armor = game.data.armor(id: character.armorID) {
-                armorDetail(armor)
-            }
+            EquipmentGridView(targetCharacterID: character.id)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .panelStyle()
-    }
-
-    /// 武器の詳細: 上昇ステータスとスロットスキルの中身
-    private func weaponDetail(_ weapon: Weapon) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text("\(weapon.type.label)(\(weapon.type.flavor))")
-                    .font(.caption2)
-                    .foregroundStyle(Palette.textSecondary)
-                StarsView(rarity: weapon.rarity)
-                if let element = weapon.element {
-                    Label(element.label, systemImage: element.symbolName)
-                        .font(.system(size: 9))
-                        .foregroundStyle(Palette.elementColor(element))
-                }
-                Spacer()
-                Text("強化 \(weapon.upgradeLevel)/\(EquipmentUpgrade.maxLevel)")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Palette.textSecondary)
-            }
-            Text(weaponBonusText(weapon))
-                .font(.caption2)
-                .foregroundStyle(Palette.hpGreen)
-            ForEach(weapon.skillPositions.sorted(by: { $0.key < $1.key }), id: \.key) { pos, skill in
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("スロット\(pos + 1): \(skill.name)(\(skill.kind.label))")
-                        .font(.caption2)
-                        .foregroundStyle(Palette.accent)
-                    Text(skill.effectText)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Palette.textSecondary)
-                }
-            }
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).stroke(Palette.panelBorder, lineWidth: 1))
-    }
-
-    private func weaponBonusText(_ weapon: Weapon) -> String {
-        let b = weapon.upgradedBonus
-        var parts: [String] = []
-        if b.attack > 0 { parts.append("攻撃+\(b.attack)") }
-        if b.magic > 0 { parts.append("魔力+\(b.magic)") }
-        if b.speed > 0 { parts.append("素早さ+\(b.speed)") }
-        if b.hp > 0 { parts.append("HP+\(b.hp)") }
-        return parts.isEmpty ? "上昇なし" : parts.joined(separator: " / ")
-    }
-
-    /// 防具の詳細: 上昇ステータスとパッシブスキル(強化で解放)
-    private func armorDetail(_ armor: Armor) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(armor.type.label)
-                    .font(.caption2)
-                    .foregroundStyle(Palette.textSecondary)
-                StarsView(rarity: armor.rarity)
-                Spacer()
-                Text("強化 \(armor.upgradeLevel)/\(EquipmentUpgrade.maxLevel)")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Palette.textSecondary)
-            }
-            Text("防御+\(armor.bonus.defense) / HP+\(armor.bonus.hp)\(armor.bonus.magic > 0 ? " / 魔力+\(armor.bonus.magic)" : "") / 重量\(armor.weight)(素早さ-\(armor.speedPenalty))")
-                .font(.caption2)
-                .foregroundStyle(Palette.hpGreen)
-            ForEach(Array(armor.passives.enumerated()), id: \.offset) { index, passive in
-                let unlocked = index < armor.upgradeLevel
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 4) {
-                        Image(systemName: unlocked ? "lock.open.fill" : "lock.fill")
-                            .font(.system(size: 9))
-                        Text("\(passive.kind.label) +\(passive.value)%\(unlocked ? "" : "(強化\(index + 1)で解放)")")
-                    }
-                    .font(.caption2)
-                    .foregroundStyle(unlocked ? Palette.accent : Palette.textSecondary.opacity(0.7))
-                    Text(passive.kind.effectDescription)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Palette.textSecondary)
-                        .padding(.leading, 14)
-                }
-            }
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).stroke(Palette.panelBorder, lineWidth: 1))
     }
 }

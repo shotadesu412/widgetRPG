@@ -6,7 +6,7 @@ struct CharacterListView: View {
     @EnvironmentObject private var game: GameViewModel
     @State private var path: [UUID] = []
 
-    private let columns = [GridItem(.adaptive(minimum: 100), spacing: 10)]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -56,17 +56,17 @@ struct CharacterCard: View {
     let character: PlayerCharacter
 
     var body: some View {
-        VStack(spacing: 6) {
-            CharacterSpriteView(spriteKey: character.jobID, pixelSize: 4, height: 72)
-                .frame(height: 72)
+        VStack(spacing: 5) {
+            CharacterSpriteView(spriteKey: character.jobID, pixelSize: 4, height: 56)
+                .frame(height: 56)
             Text(character.displayName)
-                .font(.caption.bold())
+                .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(Palette.textPrimary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .padding(.horizontal, 6)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 3)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Palette.panel)

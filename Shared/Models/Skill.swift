@@ -18,7 +18,7 @@ enum SkillKind: String, Codable, CaseIterable {
 
     var symbolName: String {
         switch self {
-        case .attack: "sword.fill"
+        case .attack: "figure.fencing"
         case .specialAttack: "burst.fill"
         case .magic: "sparkles"
         case .heal: "cross.case.fill"
