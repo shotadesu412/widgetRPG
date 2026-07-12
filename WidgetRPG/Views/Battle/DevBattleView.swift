@@ -8,6 +8,8 @@ struct DevBattleView: View {
     @StateObject private var engine = BattleEngine()
 
     @State private var selected: Set<String> = ["swordsman", "spider", "octopus"]
+    /// 敵(ヒュドラ)の属性。属性相性の検証用に切り替えられる
+    @State private var enemyElement: Element = .dark
     @State private var inBattle = false
 
     private let roster = BattleEngine.balanceRoster
@@ -29,9 +31,14 @@ struct DevBattleView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            // 開発用: DEV_BATTLE_AUTO="akuma,swordsman" 等で編成を指定して即開始
+            // 開発用: DEV_BATTLE_AUTO="akuma,swordsman" 等で編成を指定して即開始。
+            // DEV_BATTLE_ELEM で敵属性も指定できる(fire/water/electric/dark/wind)
             if let a = ProcessInfo.processInfo.environment["DEV_BATTLE_AUTO"], !inBattle {
                 selected = Set(a.split(separator: ",").map(String.init))
+                if let e = ProcessInfo.processInfo.environment["DEV_BATTLE_ELEM"],
+                   let element = Element(rawValue: e) {
+                    enemyElement = element
+                }
                 startBattle()
             }
         }
@@ -120,21 +127,33 @@ struct DevBattleView: View {
     }
 
     private var enemyCard: some View {
-        let hydra = BattleEngine.balanceHydra()
-        return HStack(spacing: 12) {
-            Image(systemName: "shield.lefthalf.filled")
-                .font(.title3)
-                .foregroundStyle(Palette.danger)
-                .frame(width: 52)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("VS  \(hydra.name)")
-                    .font(.subheadline.bold())
+        let hydra = BattleEngine.balanceHydra(element: enemyElement)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.title3)
                     .foregroundStyle(Palette.danger)
-                Text("HP\(hydra.maxHP) 攻\(hydra.attack) 防\(hydra.defense)(戦闘では無効) 速\(hydra.speed) 魔\(hydra.magic)")
-                    .font(.system(size: 10).monospaced())
-                    .foregroundStyle(Palette.textSecondary)
+                    .frame(width: 52)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("VS  \(hydra.name)")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Palette.danger)
+                    Text("HP\(hydra.maxHP) 攻\(hydra.attack) 防\(hydra.defense)(戦闘では無効) 速\(hydra.speed) 魔\(hydra.magic)")
+                        .font(.system(size: 10).monospaced())
+                        .foregroundStyle(Palette.textSecondary)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            // 属性相性の検証用: 敵の属性を切り替える
+            Picker("敵の属性", selection: $enemyElement) {
+                ForEach(Element.allCases) { element in
+                    Text(element.label).tag(element)
+                }
+            }
+            .pickerStyle(.segmented)
+            Text("相性: 風→電気→水→炎→風(有利1.3倍/不利0.85倍)。闇は与ダメ・被ダメとも1.2倍")
+                .font(.system(size: 9))
+                .foregroundStyle(Palette.textSecondary)
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12).fill(Palette.panel))
@@ -144,7 +163,7 @@ struct DevBattleView: View {
         guard !selected.isEmpty else { return }
         // 選択順を roster 順に整える
         let ids = roster.map(\.id).filter { selected.contains($0) }
-        let fresh = BattleEngine.makeBalanceStage(allyIDs: ids)
+        let fresh = BattleEngine.makeBalanceStage(allyIDs: ids, enemyElement: enemyElement)
         engine.allies = fresh.allies
         engine.enemies = fresh.enemies
         engine.log = fresh.log

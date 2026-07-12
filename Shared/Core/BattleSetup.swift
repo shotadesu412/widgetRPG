@@ -21,14 +21,24 @@ extension BattleEngine {
                 }
             }
             let ult = chara.ultimate.map(action(from:))
-            engine.allies.append(Unit(
+            var unit = Unit(
                 name: chara.displayName, isAlly: true, element: job.element,
                 maxHP: stats.hp, hp: stats.hp,
                 attack: stats.attack, defense: stats.defense, speed: stats.speed, magic: stats.magic,
                 slots: slots, ultimate: ult, ultimateLoops: chara.ultimate?.requiredLoops ?? 0,
                 reviveChance: chara.jobID == "zombie" ? 40 : 0,
                 spriteKey: chara.jobID
-            ))
+            )
+            // 簡易詳細用の表示情報(オトモは装備なし)
+            unit.isMainCharacter = true
+            if let weapon = data.weapon(id: chara.weaponID) {
+                unit.weaponInfo = (icon: weapon.type.symbolName, name: weapon.name)
+            }
+            if let armor = data.armor(id: chara.armorID) {
+                unit.armorInfo = (icon: "shield.fill", name: armor.name)
+                unit.extraPassiveLabels = armor.activePassives.map { "\($0.kind.label) +\($0.value)%" }
+            }
+            engine.allies.append(unit)
         }
 
         for otomo in data.partyOtomos {
@@ -136,7 +146,7 @@ extension BattleEngine {
     static let balanceRoster: [BalanceAlly] = [
         BalanceAlly(id: "swordsman", displayName: "剣士 Lv50", element: .wind, spriteKey: "swordsman", make: {
             // 武器: 星の剣、防具: 丈夫な鎧(偶数巡目の攻撃1.1倍)
-            Unit(name: "剣士 Lv50", isAlly: true, element: .wind,
+            var unit = Unit(name: "剣士 Lv50", isAlly: true, element: .wind,
                  maxHP: 600, hp: 600, attack: 200 + 55, defense: 150 + 70, speed: 100, magic: 30,
                  slots: [
                     BattleAction(name: "サイクロンソード", kind: .damage(pct: 50, target: .allEnemies)),
@@ -145,6 +155,11 @@ extension BattleEngine {
                  ],
                  ultimate: BattleAction(name: "切断", kind: .damage(pct: 300, target: .allEnemies)),
                  ultimateLoops: 2, spriteKey: "swordsman", passives: [.evenLoopAttack(mul: 1.1)])
+            unit.isMainCharacter = true
+            unit.weaponInfo = (icon: "sword.fill", name: "星の剣 ★★")
+            unit.armorInfo = (icon: "shield.fill", name: "丈夫な鎧 ★★")
+            unit.extraPassiveLabels = ["偶数巡目の攻撃1.1倍(丈夫な鎧)"]
+            return unit
         }),
         BalanceAlly(id: "spider", displayName: "蜘蛛 Lv50", element: .electric, spriteKey: "spider", make: {
             Unit(name: "蜘蛛 Lv50", isAlly: true, element: .electric,
@@ -169,7 +184,7 @@ extension BattleEngine {
         }),
         BalanceAlly(id: "akuma", displayName: "悪魔", element: .dark, spriteKey: "akuma", make: {
             // 悪魔(進化なし・闇・スロット4)。禊は(攻撃+魔力)基準の全体攻撃
-            Unit(name: "悪魔", isAlly: true, element: .dark,
+            var unit = Unit(name: "悪魔", isAlly: true, element: .dark,
                  maxHP: 1200, hp: 1200, attack: 200, defense: 200, speed: 150, magic: 70,
                  slots: [
                     BattleAction(name: "カオス", kind: .chaos(chance: 30, spdDownPct: 30, atkDownPct: 30, turns: 3)),
@@ -180,12 +195,15 @@ extension BattleEngine {
                  ultimate: BattleAction(name: "禊", kind: .damage(pct: 400, target: .allEnemies, stat: .attackPlusMagic)),
                  ultimateLoops: 2, spriteKey: "akuma",
                  passives: [.drainAlliesMagic(pct: 50)])
+            unit.isMainCharacter = true
+            return unit
         }),
     ]
 
-    static func balanceHydra() -> BattleEngine.Unit {
-        // ヒュドラ(中盤ボス・闇)。パッシブ: HP50%以下で毎行動120回復
-        Unit(name: "ヒュドラ", isAlly: false, element: .dark,
+    /// ヒュドラ(中盤ボス)。属性は検証用に差し替え可能(既定は闇)
+    static func balanceHydra(element: Element = .dark) -> BattleEngine.Unit {
+        // パッシブ: HP50%以下で毎行動120回復
+        Unit(name: "ヒュドラ", isAlly: false, element: element,
              maxHP: 3200, hp: 3200, attack: 145, defense: 120, speed: 75, magic: 50,
              slots: [
                 BattleAction(name: "毒牙", kind: .damage(pct: 150, target: .singleEnemy, inflict: .poison, inflictChance: 30)),
@@ -197,15 +215,16 @@ extension BattleEngine {
              passives: [.lowHPRegen(thresholdPct: 50, amount: 120)])
     }
 
-    /// 選んだ味方でヒュドラ戦を組む
-    static func makeBalanceStage(allyIDs: [String] = ["swordsman", "spider", "octopus"]) -> BattleEngine {
+    /// 選んだ味方でヒュドラ戦を組む(敵属性は検証用に指定可能)
+    static func makeBalanceStage(allyIDs: [String] = ["swordsman", "spider", "octopus"],
+                                 enemyElement: Element = .dark) -> BattleEngine {
         let engine = BattleEngine()
         for id in allyIDs {
             if let ally = balanceRoster.first(where: { $0.id == id }) {
                 engine.allies.append(ally.make())
             }
         }
-        engine.enemies.append(balanceHydra())
+        engine.enemies.append(balanceHydra(element: enemyElement))
         engine.log.append("【調整用】ヒュドラ戦 開始")
         engine.applyBattleStart()
         return engine

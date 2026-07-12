@@ -26,21 +26,32 @@ enum Element: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// 属性相性: 炎→闇→電気→風→水→炎 の5すくみで有利
-    var strongAgainst: Element {
+    /// 属性相性: 風→電気→水→炎→風 の4すくみ。闇は円環の外(特例)
+    var strongAgainst: Element? {
         switch self {
-        case .fire: .dark
-        case .dark: .electric
-        case .electric: .wind
-        case .wind: .water
+        case .wind: .electric
+        case .electric: .water
         case .water: .fire
+        case .fire: .wind
+        case .dark: nil
         }
     }
 
+    /// ダメージ倍率。
+    /// - 4すくみ: 有利1.3倍 / 不利0.85倍
+    /// - 闇: 全属性に与ダメ1.2倍、かつ全属性から被ダメ1.2倍(闇同士は1.44倍)
     func multiplier(against defender: Element) -> Double {
-        if strongAgainst == defender { return 1.5 }
-        if defender.strongAgainst == self { return 0.75 }
-        return 1.0
+        var value = 1.0
+        if self == .dark { value *= 1.2 }      // 闇の与ダメ
+        if defender == .dark { value *= 1.2 }  // 闇の被ダメ
+        if self != .dark, defender != .dark {
+            if strongAgainst == defender {
+                value *= 1.3
+            } else if defender.strongAgainst == self {
+                value *= 0.85
+            }
+        }
+        return value
     }
 }
 
