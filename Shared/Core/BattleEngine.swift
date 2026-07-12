@@ -111,6 +111,18 @@ enum BattlePassive: Hashable {
     case evenLoopAttack(mul: Double)                 // 偶数巡目の攻撃を強化
     case lowHPRegen(thresholdPct: Int, amount: Int)  // HPが閾値以下で毎行動回復
     case drainAlliesMagic(pct: Int)                  // 戦闘開始時、味方の魔力を0にして合計の一定%を自分に加算
+
+    /// 簡易詳細のパッシブ効果一覧に表示する説明
+    var label: String {
+        switch self {
+        case .evenLoopAttack(let mul):
+            "偶数巡目の攻撃\(String(format: "%.1f", mul))倍"
+        case .lowHPRegen(let threshold, let amount):
+            "HP\(threshold)%以下で毎行動\(amount)回復"
+        case .drainAlliesMagic(let pct):
+            "開戦時に味方の魔力の\(pct)%を吸収"
+        }
+    }
 }
 
 /// 一時的なステータス補正
@@ -169,6 +181,16 @@ final class BattleEngine: ObservableObject {
         var spriteKey: String
         var passives: [BattlePassive] = []
 
+        // 簡易詳細(戦闘中に見る詳細)用の表示情報
+        /// メインキャラかどうか(タブ分類用。オトモ・敵は false)
+        var isMainCharacter = false
+        /// 武器の表示(アイコン+名前)。オトモは装備なし
+        var weaponInfo: (icon: String, name: String)?
+        /// 防具の表示(アイコン+名前)
+        var armorInfo: (icon: String, name: String)?
+        /// 防具などのパッシブ効果一覧(表示用テキスト)
+        var extraPassiveLabels: [String] = []
+
         // 状態
         var ailments: Set<Ailment> = []
         var modifiers: [StatModifier] = []
@@ -211,6 +233,12 @@ final class BattleEngine: ObservableObject {
             return max(1, Int(value))
         }
         var effectiveDefense: Int { max(0, Int(Double(defense) * modMultiplier(.defense))) }
+        /// 簡易詳細表示用の実効攻撃(バフ・攻撃低下込み。巡目パッシブは除く)
+        var effectiveAttackDisplay: Int {
+            var value = Double(attack) * modMultiplier(.attack)
+            if ailments.contains(.attackDown) { value *= 0.7 }
+            return max(0, Int(value))
+        }
     }
 
     enum BattleResult { case victory, defeat }

@@ -103,6 +103,9 @@ struct Otomo: Identifiable, Codable, Hashable {
     /// 星の数に応じた進化上限(星1=0回、星2=1回、星3=2回)
     var maxStage: Int { species().canEvolve ? rarity.rawValue - 1 : 0 }
 
+    /// 進化可能か(キャラと同じレベル条件。素材は不要)
+    var canEvolve: Bool { stage < maxStage && level >= (stage + 1) * 10 }
+
     var grownStats: BaseStats {
         let base = species().baseStats.scaled(by: 1.0 + Double(rarity.rawValue - 1) * 0.25)
         let leveled = (base + base.scaled(by: Double(level - 1) * 0.08)).scaled(by: 1.0 + Double(stage) * 0.4)

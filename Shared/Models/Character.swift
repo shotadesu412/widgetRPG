@@ -52,7 +52,8 @@ struct PlayerCharacter: Identifiable, Codable, Hashable {
     var placedSkills: [Skill?] = []
     var ultimate: UltimateSkill?
     var weaponID: UUID?
-    var armorIDs: [UUID] = []
+    /// 防具は1個のみ装備できる
+    var armorID: UUID?
 
     var expToNext: Int { level * 100 }
 

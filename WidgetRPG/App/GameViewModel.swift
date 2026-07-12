@@ -9,6 +9,9 @@ final class GameViewModel: ObservableObject {
     init() {
         var loaded = GameStore.load()
         IdleEngine.process(&loaded)
+        // 編成上限の変更(キャラ1人+オトモ2匹)に合わせて過剰分を外す
+        loaded.partyCharacterIDs = Array(loaded.partyCharacterIDs.prefix(AppConstants.maxPartyCharacters))
+        loaded.partyOtomoIDs = Array(loaded.partyOtomoIDs.prefix(AppConstants.maxPartyOtomos))
         data = loaded
     }
 
@@ -187,13 +190,24 @@ final class GameViewModel: ObservableObject {
         save()
     }
 
-    func toggleArmor(_ armor: Armor, for character: PlayerCharacter) {
+    /// 防具は1個のみ装備できる(nil で外す)
+    func equipArmor(_ armor: Armor?, to character: PlayerCharacter) {
         guard let index = data.characters.firstIndex(where: { $0.id == character.id }) else { return }
-        if let pos = data.characters[index].armorIDs.firstIndex(of: armor.id) {
-            data.characters[index].armorIDs.remove(at: pos)
-        } else {
-            data.characters[index].armorIDs.append(armor.id)
-        }
+        data.characters[index].armorID = armor?.id
+        save()
+    }
+
+    /// オトモの進化(レベル条件のみ。進化でスキル習得)
+    func evolveOtomo(_ otomo: Otomo) {
+        guard otomo.canEvolve,
+              let index = data.otomos.firstIndex(where: { $0.id == otomo.id }) else { return }
+        data.otomos[index].stage += 1
+        let species = otomo.species()
+        let newStage = data.otomos[index].stage
+        data.otomos[index].skills.append(
+            Skill(name: "\(species.name)の猛攻", kind: .specialAttack,
+                  power: 120 + newStage * 30, element: species.element)
+        )
         save()
     }
 

@@ -59,15 +59,13 @@ struct SaveData: Codable {
         Set(partyCharacters.filter { $0.job().category == .specialSupport }.map(\.jobID))
     }
 
-    /// 装備込みの実効ステータス(武器は強化込み)
+    /// 装備込みの実効ステータス(武器は強化込み、防具は1個)
     func effectiveStats(of character: PlayerCharacter) -> BaseStats {
         var stats = character.grownStats
         if let w = weapon(id: character.weaponID) { stats = stats + w.upgradedBonus }
-        for armorID in character.armorIDs {
-            if let a = armor(id: armorID) {
-                stats = stats + a.bonus
-                stats.speed = max(1, stats.speed - a.speedPenalty)
-            }
+        if let a = armor(id: character.armorID) {
+            stats = stats + a.bonus
+            stats.speed = max(1, stats.speed - a.speedPenalty)
         }
         return stats
     }

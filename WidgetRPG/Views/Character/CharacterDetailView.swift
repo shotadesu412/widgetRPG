@@ -219,31 +219,31 @@ struct CharacterDetailView: View {
                 .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
             }
 
-            // 防具(タップで着脱)
-            Text("防具(重量が高いほど守りは固いが、素早さが下がる)")
+            // 防具(1個のみ装備)
+            Text("防具は1個だけ装備できる(重量が高いほど守りは固いが、素早さが下がる)")
                 .font(.caption2)
                 .foregroundStyle(Palette.textSecondary)
-            ForEach(game.data.armors) { armor in
-                Button {
-                    game.toggleArmor(armor, for: character)
-                } label: {
-                    HStack {
-                        Image(systemName: character.armorIDs.contains(armor.id)
-                              ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(character.armorIDs.contains(armor.id)
-                                             ? Palette.accent : Palette.textSecondary)
-                        Text("\(armor.name) \(armor.rarity.stars)")
-                            .font(.caption)
-                            .foregroundStyle(Palette.textPrimary)
-                        Spacer()
-                        Text("重量\(armor.weight)")
-                            .font(.caption2)
-                            .foregroundStyle(Palette.textSecondary)
+            Menu {
+                Button("外す") { game.equipArmor(nil, to: character) }
+                ForEach(game.data.armors) { armor in
+                    Button("\(armor.name) \(armor.rarity.stars) 重量\(armor.weight)") {
+                        game.equipArmor(armor, to: character)
                     }
-                    .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
                 }
-                .buttonStyle(.plain)
+            } label: {
+                HStack {
+                    Image(systemName: "shield.fill")
+                        .foregroundStyle(Palette.accent)
+                    Text(game.data.armor(id: character.armorID)?.name ?? "防具なし")
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(Palette.textSecondary)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

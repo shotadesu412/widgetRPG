@@ -15,6 +15,8 @@ struct BattleSceneView: View {
     var extraResultButton: (label: String, action: () -> Void)?
 
     @State private var running = true
+    /// 簡易詳細を表示中のユニットID(表示中は戦闘を一時停止)
+    @State private var quickDetailID: UUID?
     private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -24,7 +26,9 @@ struct BattleSceneView: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(spacing: 10) {
                     ForEach(engine.allies) { unit in
+                        // 味方をタップで簡易詳細
                         BattleUnitView(unit: unit, alignLeft: true)
+                            .onTapGesture { quickDetailID = unit.id }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -42,9 +46,25 @@ struct BattleSceneView: View {
             resultFooter
         }
         .background(Palette.background)
+        .onAppear {
+            // 開発用: DEV_QUICK=1 で開戦2.5秒後に簡易詳細を自動表示(スクショ確認用)
+            if ProcessInfo.processInfo.environment["DEV_QUICK"] == "1" {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    quickDetailID = engine.allies.first?.id
+                }
+            }
+        }
         .onReceive(timer) { _ in
-            guard running, engine.result == nil else { return }
+            guard running, engine.result == nil, quickDetailID == nil else { return }
             engine.tick(deltaTime: 0.05)
+        }
+        .sheet(isPresented: Binding(
+            get: { quickDetailID != nil },
+            set: { if !$0 { quickDetailID = nil } }
+        )) {
+            if let id = quickDetailID {
+                BattleQuickDetailView(engine: engine, selectedID: id)
+            }
         }
     }
 

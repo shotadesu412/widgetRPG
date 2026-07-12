@@ -1,29 +1,39 @@
 import SwiftUI
 
-/// キャラタブ: キャラクターや装備の編集・強化・詳細確認
+/// キャラタブ: 一覧(イラスト+名前のカードグリッド)。
+/// タップで正式な詳細画面(進化・スキル詳細・装備)へ。
 struct CharacterListView: View {
     @EnvironmentObject private var game: GameViewModel
 
+    private let columns = [GridItem(.adaptive(minimum: 100), spacing: 10)]
+
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(JobCategory.allCases, id: \.self) { category in
-                    let charas = game.data.characters.filter { $0.job().category == category }
-                    if !charas.isEmpty {
-                        Section(category.label) {
-                            ForEach(charas) { chara in
-                                NavigationLink(value: chara.id) {
-                                    CharacterRow(character: chara)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(JobCategory.allCases, id: \.self) { category in
+                        let charas = game.data.characters.filter { $0.job().category == category }
+                        if !charas.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(category.label)
+                                    .font(.caption)
+                                    .foregroundStyle(Palette.textSecondary)
+                                LazyVGrid(columns: columns, spacing: 10) {
+                                    ForEach(charas) { chara in
+                                        NavigationLink(value: chara.id) {
+                                            CharacterCard(character: chara)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                 }
-                                .listRowBackground(Palette.panel)
                             }
                         }
                     }
                 }
+                .padding()
             }
-            .scrollContentBackground(.hidden)
             .background(Palette.background)
-            .navigationTitle("キャラ")
+            .navigationTitle("キャラ一覧")
             .navigationDestination(for: UUID.self) { id in
                 if let chara = game.data.character(id: id) {
                     CharacterDetailView(characterID: chara.id)
@@ -33,31 +43,29 @@ struct CharacterListView: View {
     }
 }
 
-struct CharacterRow: View {
-    @EnvironmentObject private var game: GameViewModel
+/// 一覧カード(イラスト+名前)
+struct CharacterCard: View {
     let character: PlayerCharacter
 
     var body: some View {
-        let job = character.job()
-        HStack(spacing: 12) {
-            CharacterSpriteView(spriteKey: job.id, pixelSize: 3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(character.displayName)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.textPrimary)
-                Text("Lv\(character.level) / \(job.element.label)属性 / スロット\(job.slotCount)")
-                    .font(.caption2)
-                    .foregroundStyle(Palette.textSecondary)
-            }
-            Spacer()
-            if character.canEvolve {
-                Text("進化可")
-                    .font(.system(size: 9).bold())
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(Palette.accent))
-                    .foregroundStyle(Palette.background)
-            }
+        VStack(spacing: 6) {
+            CharacterSpriteView(spriteKey: character.jobID, pixelSize: 4, height: 72)
+                .frame(height: 72)
+            Text(character.displayName)
+                .font(.caption.bold())
+                .foregroundStyle(Palette.textPrimary)
+                .lineLimit(1)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Palette.panel)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Palette.panelBorder, lineWidth: 1)
+                )
+        )
     }
 }

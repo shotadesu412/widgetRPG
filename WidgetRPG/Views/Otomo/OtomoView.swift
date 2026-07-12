@@ -16,6 +16,11 @@ struct OtomoView: View {
             }
             .background(Palette.background)
             .navigationTitle("オトモ")
+            .navigationDestination(for: UUID.self) { id in
+                if let otomo = game.data.otomo(id: id) {
+                    OtomoDetailView(otomoID: otomo.id)
+                }
+            }
             .refreshable {
                 game.processIdle()
             }
@@ -95,6 +100,7 @@ struct OtomoView: View {
         .panelStyle()
     }
 
+    // オトモ一覧: イラスト+名前のカードグリッド。タップで正式詳細へ
     private var otomoSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("オトモ一覧")
@@ -106,13 +112,45 @@ struct OtomoView: View {
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
             } else {
-                ForEach(game.data.otomos) { otomo in
-                    OtomoRow(otomo: otomo)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 10)], spacing: 10) {
+                    ForEach(game.data.otomos) { otomo in
+                        NavigationLink(value: otomo.id) {
+                            OtomoCard(otomo: otomo)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .panelStyle()
+    }
+}
+
+/// 一覧カード(イラスト+名前)
+struct OtomoCard: View {
+    let otomo: Otomo
+
+    var body: some View {
+        VStack(spacing: 6) {
+            CharacterSpriteView(spriteKey: otomo.speciesID, pixelSize: 4, height: 72)
+                .frame(height: 72)
+            Text(otomo.displayName)
+                .font(.caption.bold())
+                .foregroundStyle(Palette.textPrimary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Palette.background)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Palette.panelBorder, lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -153,44 +191,3 @@ struct EggCard: View {
     }
 }
 
-struct OtomoRow: View {
-    let otomo: Otomo
-
-    var body: some View {
-        let species = otomo.species()
-        HStack(spacing: 12) {
-            CharacterSpriteView(spriteKey: species.id, pixelSize: 3)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(otomo.displayName)
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.textPrimary)
-                    StarsView(rarity: otomo.rarity)
-                }
-                Text("\(species.category.label) / Lv\(otomo.level) / \(species.element.label)属性")
-                    .font(.caption2)
-                    .foregroundStyle(Palette.textSecondary)
-                // 個体値(±10%のブレ)。平均がプラスなら緑
-                Text(ivText)
-                    .font(.system(size: 9).monospaced())
-                    .foregroundStyle(otomo.ivs.total >= 0 ? Palette.hpGreen : Palette.textSecondary)
-                if !species.canEvolve {
-                    Text("この種は進化しない")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Palette.accent)
-                }
-            }
-            Spacer()
-            Image(systemName: species.element.symbolName)
-                .foregroundStyle(Palette.elementColor(species.element))
-        }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
-    }
-
-    private var ivText: String {
-        let iv = otomo.ivs
-        func f(_ v: Int) -> String { v >= 0 ? "+\(v)" : "\(v)" }
-        return "個体値 HP\(f(iv.hp)) 攻\(f(iv.attack)) 防\(f(iv.defense)) 速\(f(iv.speed)) 魔\(f(iv.magic))"
-    }
-}
