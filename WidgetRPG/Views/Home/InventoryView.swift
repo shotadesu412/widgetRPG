@@ -84,11 +84,16 @@ struct WeaponRow: View {
             }
             .font(.caption2)
             .foregroundStyle(Palette.textSecondary)
-            // 武器スキル(スロット位置つき)
+            // 武器スキル(スロット位置と効果の中身)
             ForEach(weapon.skillPositions.sorted(by: { $0.key < $1.key }), id: \.key) { pos, skill in
-                Text("スロット\(pos + 1): \(skill.name)(\(skill.kind.label))")
-                    .font(.caption2)
-                    .foregroundStyle(Palette.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("スロット\(pos + 1): \(skill.name)(\(skill.kind.label))")
+                        .font(.caption2)
+                        .foregroundStyle(Palette.accent)
+                    Text(skill.effectText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.textSecondary)
+                }
             }
             UpgradeButton(
                 level: weapon.upgradeLevel,
@@ -119,16 +124,22 @@ struct ArmorRow: View {
             Text("防御+\(armor.bonus.defense) HP+\(armor.bonus.hp) 重量\(armor.weight)(素早さ-\(armor.speedPenalty))")
                 .font(.caption2)
                 .foregroundStyle(Palette.textSecondary)
-            // パッシブは星と同数付与され、強化で順に解放される
+            // パッシブは星と同数付与され、強化で順に解放される(効果の説明つき)
             ForEach(Array(armor.passives.enumerated()), id: \.offset) { index, passive in
                 let unlocked = index < armor.upgradeLevel
-                HStack(spacing: 4) {
-                    Image(systemName: unlocked ? "lock.open.fill" : "lock.fill")
-                        .font(.system(size: 9))
-                    Text("\(passive.kind.label) +\(passive.value)%")
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Image(systemName: unlocked ? "lock.open.fill" : "lock.fill")
+                            .font(.system(size: 9))
+                        Text("\(passive.kind.label) +\(passive.value)%")
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(unlocked ? Palette.accent : Palette.textSecondary.opacity(0.6))
+                    Text(passive.kind.effectDescription)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.textSecondary)
+                        .padding(.leading, 14)
                 }
-                .font(.caption2)
-                .foregroundStyle(unlocked ? Palette.accent : Palette.textSecondary.opacity(0.6))
             }
             UpgradeButton(
                 level: armor.upgradeLevel,

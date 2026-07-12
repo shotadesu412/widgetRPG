@@ -85,9 +85,9 @@ struct SaveData: Codable {
         hero.placedSkills[0] = hero.learnedSkills.first
         hero.ultimate = JobCatalog.starterUltimate(for: job)
 
-        var weapon = ItemFactory.randomWeapon()
+        // 初期武器は剣種で生成する(スキルも剣のものになる)
+        var weapon = ItemFactory.randomWeapon(rarity: .star1, type: .sword)
         weapon.name = "錆びた剣"
-        weapon.type = .sword
         hero.weaponID = weapon.id
 
         data.characters = [hero]

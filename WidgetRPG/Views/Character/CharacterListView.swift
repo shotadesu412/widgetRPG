@@ -4,11 +4,12 @@ import SwiftUI
 /// タップで正式な詳細画面(進化・スキル詳細・装備)へ。
 struct CharacterListView: View {
     @EnvironmentObject private var game: GameViewModel
+    @State private var path: [UUID] = []
 
     private let columns = [GridItem(.adaptive(minimum: 100), spacing: 10)]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     ForEach(JobCategory.allCases, id: \.self) { category in
@@ -37,6 +38,13 @@ struct CharacterListView: View {
             .navigationDestination(for: UUID.self) { id in
                 if let chara = game.data.character(id: id) {
                     CharacterDetailView(characterID: chara.id)
+                }
+            }
+            .onAppear {
+                // 開発用: DEV_CHAR_DETAIL=1 で先頭キャラの詳細を自動表示(スクショ確認用)
+                if ProcessInfo.processInfo.environment["DEV_CHAR_DETAIL"] == "1",
+                   path.isEmpty, let first = game.data.characters.first {
+                    path.append(first.id)
                 }
             }
         }

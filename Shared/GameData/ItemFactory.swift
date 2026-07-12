@@ -35,8 +35,8 @@ enum ItemFactory {
         }
     }
 
-    static func randomWeapon(rarity: Rarity? = nil) -> Weapon {
-        let type = WeaponType.allCases.randomElement()!
+    static func randomWeapon(rarity: Rarity? = nil, type: WeaponType? = nil) -> Weapon {
+        let type = type ?? WeaponType.allCases.randomElement()!
         let rarity = rarity ?? rollEquipmentRarity()
         let element = Bool.random() ? Element.allCases.randomElement() : nil
 

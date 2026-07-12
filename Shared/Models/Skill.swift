@@ -49,6 +49,35 @@ struct Skill: Identifiable, Codable, Hashable {
     var element: Element?
     /// 武器スキルの場合の効果傾向
     var weaponEffect: WeaponEffect?
+
+    /// スキル効果の説明文。戦闘での実際の挙動(BattleSetup.action(from:))と対応させる
+    var effectText: String {
+        let elem = element.map { "\($0.label)属性で" } ?? ""
+        if let weaponEffect {
+            switch weaponEffect {
+            case .single: return "\(elem)敵単体に攻撃力\(power)%のダメージ"
+            case .aoe: return "\(elem)敵全体に攻撃力\(power)%のダメージ"
+            case .crit: return "\(elem)敵単体に攻撃力\(power)%(40%で会心2倍)"
+            case .multiHit: return "\(elem)敵単体に攻撃力\(power)%のダメージを2回"
+            case .magic: return "\(elem)敵単体に魔力\(power)%のダメージ"
+            case .randomHits: return "\(elem)敵単体に攻撃力\(power)%のダメージを1〜5回"
+            case .debuff: return "\(elem)敵単体に攻撃力\(power)% + 40%で攻撃低下か速度低下"
+            }
+        }
+        switch kind {
+        case .attack, .specialAttack: return "\(elem)敵単体に攻撃力\(power)%のダメージ"
+        case .magic: return "\(elem)敵単体に魔力\(power)%のダメージ"
+        case .heal: return "最もHPの低い味方を魔力のぶん回復"
+        case .buff: return "自分の攻撃を\(max(5, power / 10))%上げる(次の行動まで)"
+        case .debuff: return "敵単体の素早さを\(max(5, power / 10))%下げる(次の行動まで)"
+        case .barrier: return "防御+30%(自分のスロット2回発動まで)"
+        }
+    }
+}
+
+/// 通常攻撃(空きスロット)の効果説明
+enum NormalAttackInfo {
+    static let effectText = "敵単体に攻撃力100%のダメージ"
 }
 
 /// 必殺技(スロット一定周回で発動)
@@ -116,11 +145,29 @@ enum PassiveKind: String, Codable, CaseIterable {
         }
     }
 
-    /// 強パッシブかどうか(強い効果ほど軽い防具=指輪・仮面に付く)
+    /// 強パッシブかどうか(強い効果ほど軽い防具=指輪に付く)
     var isStrong: Bool {
         switch self {
         case .doubleAct, .lowHPBoost: true
         default: false
+        }
+    }
+
+    /// パッシブ効果の説明文
+    var effectDescription: String {
+        switch self {
+        case .doubleAct: "確率で2回行動する"
+        case .statBoost: "基礎ステータスが上がる"
+        case .oddSlotBoost: "奇数番スロットの技が強化される"
+        case .evenSlotBoost: "偶数番スロットの技が強化される"
+        case .firstLoopBoost: "1周目の技が強化される"
+        case .secondLoopBoost: "2周目の技が強化される"
+        case .emptySlotBoost: "通常攻撃(空きスロット)が強化される"
+        case .elementBoost: "自属性の攻撃が強化される"
+        case .otomoBoost: "オトモのステータスが上がる"
+        case .lowHPBoost: "HPが低いほど強化される"
+        case .flatDamage: "攻撃に固定ダメージを追加する"
+        case .miniBarrier: "開戦時に小さなバリアを張る"
         }
     }
 }

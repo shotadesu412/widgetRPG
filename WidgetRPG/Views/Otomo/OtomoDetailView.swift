@@ -103,10 +103,10 @@ struct OtomoDetailView: View {
                                     .foregroundStyle(Palette.accent)
                                     .frame(width: 20)
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text(skill.name)
+                                    Text("\(skill.name)(\(skill.kind.label))")
                                         .font(.caption.bold())
                                         .foregroundStyle(Palette.textPrimary)
-                                    Text("\(skill.kind.label) 威力\(skill.power)%\(skill.element.map { " / \($0.label)属性" } ?? "")")
+                                    Text(skill.effectText)
                                         .font(.system(size: 10))
                                         .foregroundStyle(Palette.textSecondary)
                                 }
