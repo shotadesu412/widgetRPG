@@ -32,7 +32,7 @@ def make_synthetic() -> Image.Image:
 def test_character_pipeline() -> None:
     config = PipelineConfig()
     config.validate()
-    names = ["background_remover", "noise", "trim", "resize", "pixelize", "palette", "outline", "ground"]
+    names = ["background_remover", "noise", "isolate", "trim", "resize", "pixelize", "palette", "outline", "ground"]
     ctx = AssetContext(image=make_synthetic(), source=Path("synthetic.png"), category="characters", config=config)
     for p in build_pipeline(names, config):
         ctx = p(ctx)

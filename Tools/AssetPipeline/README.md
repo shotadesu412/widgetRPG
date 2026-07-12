@@ -60,7 +60,8 @@ config.json             全設定
 presets/                カテゴリ別のパイプライン定義
 processors/
   base.py               Processor 基底+レジストリ
-  background_remover.py 背景透過(四隅推定+フラッドフィル+近似色)
+  background_remover.py 背景透過(四隅推定。bg_mode: global=色相キーイング / floodfill)
+  isolate.py            主要成分抽出(浮遊する羽根・雲片など残骸の除去、bridge_erosion)
   trim.py               BoundingBox 切り出し
   noise.py              半透明/AA 二値化・孤立ピクセル除去
   resize.py             Safe Area へ Nearest 縮小
@@ -94,3 +95,12 @@ input/ output/          入出力(内容は git 管理外)
 5. ✅ SpriteSheet 生成(最小実装)
 6. ⬜ Animation Generator(パーツ推定・±1〜3px の微動・ドット補完)
 7. ⬜ GUI・フォルダ監視・比較プレビュー・Undo
+
+## AI画像の生成ガイドライン
+
+パイプラインの精度は入力に依存する。生成時は以下を推奨:
+
+- **背景は無地の単色**(キャラの使用色から遠い色。マゼンタやティールなど)
+- 雲・羽根・エフェクト等の**装飾をキャラに重ねない**(キャラと接触した装飾は
+  意味的に分離不能。離れて浮いている装飾は isolate が自動除去する)
+- キャラは1体のみ、全身が画面内に収まるように

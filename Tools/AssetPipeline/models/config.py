@@ -27,7 +27,11 @@ class PipelineConfig:
     palette_size: int = 32
     pixel_size: int = 2
     transparent_background: bool = True
+    bg_mode: str = "global"
     bg_tolerance: int = 42
+    keep_main_component: bool = True
+    min_component_ratio: float = 0.1
+    bridge_erosion: int = 0
     trim: bool = True
     nearest_resize: bool = True
     upscale_to_safe_area: bool = False
@@ -77,5 +81,9 @@ class PipelineConfig:
             raise ValueError("safe_area は canvas 以下の正の値")
         if not (0 < self.ground_y <= self.canvas_height):
             raise ValueError("ground_y は canvas_height 以下の正の値")
+        if self.bg_mode not in ("global", "floodfill"):
+            raise ValueError("bg_mode は global か floodfill")
+        if not (0.0 <= self.min_component_ratio <= 1.0):
+            raise ValueError("min_component_ratio は 0〜1")
         if not self.outline_color.startswith("#") or len(self.outline_color) != 7:
             raise ValueError("outline_color は #RRGGBB 形式")

@@ -3,6 +3,7 @@
   "processors": [
     "background_remover",
     "noise",
+    "isolate",
     "trim",
     "resize",
     "pixelize",
