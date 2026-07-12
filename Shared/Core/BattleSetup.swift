@@ -5,7 +5,7 @@ extension BattleEngine {
 
     // MARK: - 通常のボス戦(セーブデータから編成)
 
-    static func make(data: SaveData, bossEnemyID: String, mobEnemyIDs: [String]) -> BattleEngine {
+    static func make(data: SaveData, bossEnemyID: String, mobEnemyIDs: [String], level: Int = 45) -> BattleEngine {
         let engine = BattleEngine()
 
         for chara in data.partyCharacters {
@@ -58,20 +58,91 @@ extension BattleEngine {
         }
 
         let boss = EnemyCatalog.enemy(id: bossEnemyID)
-        engine.enemies.append(enemyUnit(boss))
+        engine.enemies.append(enemyUnit(boss, level: level))
         for mobID in mobEnemyIDs.shuffled().prefix(2) {
-            engine.enemies.append(enemyUnit(EnemyCatalog.enemy(id: mobID)))
+            engine.enemies.append(enemyUnit(EnemyCatalog.enemy(id: mobID), level: level))
         }
         engine.log.append("\(boss.name)が立ちはだかる!")
         return engine
     }
 
-    private static func enemyUnit(_ enemy: Enemy) -> Unit {
-        Unit(name: enemy.name, isAlly: false, element: enemy.element,
-             maxHP: enemy.stats.hp, hp: enemy.stats.hp,
-             attack: enemy.stats.attack, defense: enemy.stats.defense,
-             speed: enemy.stats.speed, magic: enemy.stats.magic,
-             slots: [.normal, .normal, .normal], spriteKey: enemy.spriteKey)
+    // MARK: - 敵のレベルスケーリング
+
+    /// 敵ステータスの倍率。カタログ値は「推奨Lv45相当」の基準値
+    /// (無貌の回廊 最終ボス=シミュレーターのヒュドラと同格がアンカー)。
+    static func enemyScale(level: Int) -> Double {
+        Double(max(1, level)) / 45.0
+    }
+
+    /// 敵ユニットを推奨レベルに応じてスケーリングして生成する。
+    /// 素早さだけは緩やかに変化(低レベル帯でも行動させ、高レベル帯で速くなりすぎない)
+    static func enemyUnit(_ enemy: Enemy, level: Int = 45) -> Unit {
+        let scale = enemyScale(level: level)
+        let speedScale = 0.5 + 0.5 * scale
+        let hp = max(10, Int(Double(enemy.stats.hp) * scale))
+        let kit = bossKit(for: enemy.id, scale: scale)
+        return Unit(name: enemy.name, isAlly: false, element: enemy.element,
+                    maxHP: hp, hp: hp,
+                    attack: max(1, Int(Double(enemy.stats.attack) * scale)),
+                    defense: 0,
+                    speed: max(5, Int(Double(enemy.stats.speed) * speedScale)),
+                    magic: max(1, Int(Double(enemy.stats.magic) * scale)),
+                    slots: kit.slots, ultimate: kit.ultimate, ultimateLoops: kit.ultimateLoops,
+                    spriteKey: enemy.spriteKey, passives: kit.passives)
+    }
+
+    /// ボスの技キット。無貌の回廊最終ボスは調整基準のヒュドラ戦と同じ構成
+    /// (単体150%+状態異常30% / 全体90% / 自己回復)+必殺2巡+低HP再生。
+    private static func bossKit(for enemyID: String, scale: Double)
+        -> (slots: [BattleAction], ultimate: BattleAction?, ultimateLoops: Int, passives: [BattlePassive]) {
+        let heal = max(10, Int(250 * scale))
+        let regen = max(5, Int(120 * scale))
+        switch enemyID {
+        case "nyarlathotep_boss":
+            // アンカー: ヒュドラと同数値・同構成(毒→洗脳のフレーバー違い)
+            return ([
+                BattleAction(name: "無貌の爪", kind: .damage(pct: 150, target: .singleEnemy, inflict: .brainwash, inflictChance: 30)),
+                BattleAction(name: "混沌の波動", kind: .damage(pct: 90, target: .allEnemies)),
+                BattleAction(name: "姿なき修復", kind: .healFlat(amount: heal)),
+            ],
+            BattleAction(name: "千の異形", kind: .damage(pct: 250, target: .allEnemies, inflict: .brainwash, inflictChance: 50)),
+            2, [.lowHPRegen(thresholdPct: 50, amount: regen)])
+        case "cthulhu_boss":
+            return ([
+                BattleAction(name: "触手の薙ぎ払い", kind: .damage(pct: 150, target: .singleEnemy, inflict: .poison, inflictChance: 30)),
+                BattleAction(name: "深淵の咆哮", kind: .damage(pct: 90, target: .allEnemies)),
+                BattleAction(name: "深海の再生", kind: .healFlat(amount: heal)),
+            ],
+            BattleAction(name: "ルルイエの呼び声", kind: .damage(pct: 250, target: .allEnemies, inflict: .speedDown, inflictChance: 50)),
+            2, [.lowHPRegen(thresholdPct: 50, amount: regen)])
+        case "azathoth_boss":
+            return ([
+                BattleAction(name: "混沌の一撃", kind: .damage(pct: 170, target: .singleEnemy, inflict: .weakness, inflictChance: 30)),
+                BattleAction(name: "星喰らい", kind: .damage(pct: 100, target: .allEnemies)),
+                BattleAction(name: "無窮の脈動", kind: .healFlat(amount: heal)),
+            ],
+            BattleAction(name: "白痴の宴", kind: .damage(pct: 300, target: .allEnemies, inflict: .weakness, inflictChance: 50)),
+            2, [.lowHPRegen(thresholdPct: 50, amount: regen)])
+        case "necronomicon_boss":
+            return ([
+                BattleAction(name: "禁書の裁き", kind: .damage(pct: 140, target: .singleEnemy, inflict: .burn, inflictChance: 30)),
+                BattleAction(name: "頁の嵐", kind: .damage(pct: 85, target: .allEnemies)),
+                BattleAction(name: "綴じ直し", kind: .healFlat(amount: heal)),
+            ],
+            BattleAction(name: "禁断の章句", kind: .damage(pct: 250, target: .allEnemies, inflict: .reverse, inflictChance: 50)),
+            2, [.lowHPRegen(thresholdPct: 50, amount: regen)])
+        case "dragon_enemy":
+            return ([
+                BattleAction(name: "爪撃", kind: .damage(pct: 150, target: .singleEnemy)),
+                BattleAction(name: "ブレス", kind: .damage(pct: 90, target: .allEnemies, inflict: .burn, inflictChance: 30)),
+                .normal,
+            ],
+            BattleAction(name: "劫火", kind: .damage(pct: 220, target: .allEnemies, inflict: .burn, inflictChance: 40)),
+            2, [])
+        default:
+            // 雑魚・中ボスは通常攻撃のみ
+            return ([.normal, .normal, .normal], nil, 0, [])
+        }
     }
 
     /// ゲーム内スキル → 戦闘アクションの変換

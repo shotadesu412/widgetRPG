@@ -94,7 +94,8 @@ struct Otomo: Identifiable, Codable, Hashable {
     var ultimate: UltimateSkill? // 必殺技持ちは少なめ
     var slotCount = 3
 
-    var expToNext: Int { level * 80 }
+    /// 次のレベルまでの必要経験値(キャラよりやや軽いカーブ)
+    var expToNext: Int { Int(pow(Double(level), 1.5) * 16) }
 
     func species() -> OtomoSpecies { OtomoCatalog.species(id: speciesID) }
 

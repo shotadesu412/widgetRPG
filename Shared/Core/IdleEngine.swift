@@ -60,8 +60,10 @@ enum IdleEngine {
         for minute in 1...elapsedMinutes {
             let tickDate = run.lastProcessed.addingTimeInterval(TimeInterval(minute * 60))
 
-            // 経験値は毎分たまる
-            run.collectedExp += Int.random(in: 4...10) + dungeon.recommendedLevel
+            // 経験値は毎分たまる(推奨レベル依存)。
+            // ボス発見後は放置されないよう本来の30%に減少
+            let baseExp = Int.random(in: 5...10) + dungeon.recommendedLevel * 3
+            run.collectedExp += run.bossFound ? Int(Double(baseExp) * 0.3) : baseExp
 
             // アイテムは10分ごとに1回獲得
             // 獲得率: 素材40% / コイン40% / 装備10% / 卵10%

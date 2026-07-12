@@ -25,7 +25,8 @@ struct BossBattleView: View {
             let fresh = BattleEngine.make(
                 data: game.data,
                 bossEnemyID: dungeon.bossEnemyID,
-                mobEnemyIDs: dungeon.mobEnemyIDs
+                mobEnemyIDs: dungeon.mobEnemyIDs,
+                level: dungeon.recommendedLevel
             )
             engine.allies = fresh.allies
             engine.enemies = fresh.enemies

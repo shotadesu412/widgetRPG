@@ -3,7 +3,8 @@ import Foundation
 enum DungeonCatalog {
     static let all: [Dungeon] = mainDungeons + sideDungeons
 
-    /// メインダンジョン: 4系統 × 15マップ。順に攻略する
+    /// メインダンジョン: 4系統 × 15マップ。順に攻略する。
+    /// 最終ボスの推奨レベル: ルルイエ30 / 無貌45 / 混沌65 / 禁書75
     static let mainDungeons: [Dungeon] = {
         var list: [Dungeon] = []
         for arc in MainArc.allCases {
@@ -15,24 +16,26 @@ enum DungeonCatalog {
                     kind: .main,
                     arc: arc,
                     mapIndex: map,
-                    recommendedLevel: map * 3 + arcOffset(arc),
+                    recommendedLevel: recommendedLevel(arc: arc, map: map),
                     // 序盤のマップほど発見確率が高く、発見も早い
                     bossFindChancePerMinute: max(0.01, 0.10 - Double(map) * 0.005),
                     guaranteedFindMinutes: 10 + map * 4,
                     bossEnemyID: isLast ? arc.bossEnemyID : midBossID(arc: arc, map: map),
-                    mobEnemyIDs: ["goblin", "ogre", "demon"]
+                    // 最終ボスは単騎で登場(調整基準のヒュドラ戦と同条件)
+                    mobEnemyIDs: isLast ? [] : ["goblin", "ogre", "demon"]
                 ))
             }
         }
         return list
     }()
 
-    private static func arcOffset(_ arc: MainArc) -> Int {
+    /// 系統ごとの推奨レベル(最終層が 30/45/65/75 になるよう配分)
+    static func recommendedLevel(arc: MainArc, map: Int) -> Int {
         switch arc {
-        case .cthulhu: 0
-        case .nyarlathotep: 20
-        case .azathoth: 40
-        case .necronomicon: 60
+        case .cthulhu: map * 2                                        // 2 → 30
+        case .nyarlathotep: 30 + map                                  // 31 → 45
+        case .azathoth: 45 + Int((Double(map) * 20.0 / 15.0).rounded()) // 46 → 65
+        case .necronomicon: 65 + Int((Double(map) * 10.0 / 15.0).rounded()) // 66 → 75
         }
     }
 
@@ -44,26 +47,26 @@ enum DungeonCatalog {
     /// サブダンジョン(卵・装備・素材・イベント・カオス)
     static let sideDungeons: [Dungeon] = [
         Dungeon(id: "egg_random", name: "始まりの巣", kind: .egg, arc: nil, mapIndex: nil,
-                recommendedLevel: 1, bossFindChancePerMinute: 0.12, guaranteedFindMinutes: 10,
+                recommendedLevel: 2, bossFindChancePerMinute: 0.12, guaranteedFindMinutes: 10,
                 bossEnemyID: "goblin", mobEnemyIDs: ["goblin"]),
         Dungeon(id: "egg_legendary", name: "伝説の霊峰", kind: .egg, arc: nil, mapIndex: nil,
-                recommendedLevel: 40, bossFindChancePerMinute: 0.03, guaranteedFindMinutes: 60,
+                recommendedLevel: 50, bossFindChancePerMinute: 0.03, guaranteedFindMinutes: 60,
                 bossEnemyID: "dragon_enemy", mobEnemyIDs: ["ogre", "giant"]),
         Dungeon(id: "equip_random", name: "錆びた武器庫", kind: .equipment, arc: nil, mapIndex: nil,
-                recommendedLevel: 5, bossFindChancePerMinute: 0.10, guaranteedFindMinutes: 15,
+                recommendedLevel: 6, bossFindChancePerMinute: 0.10, guaranteedFindMinutes: 15,
                 bossEnemyID: "golem", mobEnemyIDs: ["goblin", "golem"]),
         Dungeon(id: "equip_element", name: "属性の祭壇", kind: .equipment, arc: nil, mapIndex: nil,
-                recommendedLevel: 25, bossFindChancePerMinute: 0.05, guaranteedFindMinutes: 40,
+                recommendedLevel: 30, bossFindChancePerMinute: 0.05, guaranteedFindMinutes: 40,
                 bossEnemyID: "angel", mobEnemyIDs: ["angel", "demon"]),
         Dungeon(id: "material_mine", name: "古びた坑道", kind: .material, arc: nil, mapIndex: nil,
-                recommendedLevel: 3, bossFindChancePerMinute: 0.10, guaranteedFindMinutes: 12,
+                recommendedLevel: 4, bossFindChancePerMinute: 0.10, guaranteedFindMinutes: 12,
                 bossEnemyID: "golem", mobEnemyIDs: ["goblin"]),
         Dungeon(id: "event_raid", name: "ゲリラレイド", kind: .event, arc: nil, mapIndex: nil,
-                recommendedLevel: 20, bossFindChancePerMinute: 0.20, guaranteedFindMinutes: 8,
+                recommendedLevel: 35, bossFindChancePerMinute: 0.20, guaranteedFindMinutes: 8,
                 bossEnemyID: "dragon_enemy", mobEnemyIDs: ["demon", "angel"]),
         // カオス: エンドレス。発見時間は青天井(保証なし)
         Dungeon(id: "chaos", name: "混沌の狭間", kind: .chaos, arc: nil, mapIndex: nil,
-                recommendedLevel: 50, bossFindChancePerMinute: 0.04, guaranteedFindMinutes: nil,
+                recommendedLevel: 70, bossFindChancePerMinute: 0.04, guaranteedFindMinutes: nil,
                 bossEnemyID: "dragon_enemy",
                 mobEnemyIDs: ["angel", "demon", "golem", "cyclops", "ogre", "giant"]),
     ]

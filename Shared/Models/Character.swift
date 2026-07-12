@@ -55,17 +55,22 @@ struct PlayerCharacter: Identifiable, Codable, Hashable {
     /// 防具は1個のみ装備できる
     var armorID: UUID?
 
-    var expToNext: Int { level * 100 }
+    /// 次のレベルまでの必要経験値。
+    /// メイン攻略ペース(最終ボス推奨Lv: 30/45/65/75)に合わせた上振れカーブ
+    var expToNext: Int { Int(pow(Double(level), 1.5) * 20) }
 
     func job() -> Job { JobCatalog.job(id: jobID) }
 
     var displayName: String { job().name(atStage: stage) }
 
-    /// レベルと進化段階を反映した素のステータス
+    /// レベルと進化段階を反映した素のステータス。
+    /// 進化1段階ごとに+25%(最終進化で1.5倍)。
+    /// アンカー: 剣士 Lv50・最終進化 = HP600/攻200/防150/速100/魔30
+    /// (戦闘調整シミュレーターの基準値)
     var grownStats: BaseStats {
         let job = job()
         let leveled = job.baseStats + job.growth.scaled(by: Double(level - 1))
-        return leveled.scaled(by: 1.0 + Double(stage) * 0.5)
+        return leveled.scaled(by: 1.0 + Double(stage) * 0.25)
     }
 
     var canEvolve: Bool {
