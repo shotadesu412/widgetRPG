@@ -102,7 +102,8 @@ final class GameViewModel: ObservableObject {
     /// 本日のスカウトが可能か(未実施、またはギルドチケット所持)
     var canScout: Bool { !data.guild.scoutedToday || data.guildTickets > 0 }
 
-    /// 来訪者をスカウト。成功時は仲間に加わる。2回目以降はギルドチケットを消費
+    /// 来訪者をスカウト。成功時は仲間に加わる。2回目以降はギルドチケットを消費。
+    /// 成功率はキャラごと独立(ティア別初期値+失敗で上昇、成功でリセット)
     @discardableResult
     func scout(_ visitor: GuildVisitor) -> Bool {
         if data.guild.scoutedToday {
@@ -111,17 +112,21 @@ final class GameViewModel: ObservableObject {
         }
         data.guild.scoutedToday = true
 
-        let success = Double.random(in: 0..<1) < data.guild.scoutChance
+        let success = Double.random(in: 0..<1) < data.guild.scoutChance(forJobID: visitor.jobID)
         if success {
-            data.guild.scoutFailCount = 0
+            data.guild.scoutFails.removeValue(forKey: visitor.jobID)
             let job = JobCatalog.job(id: visitor.jobID)
             var chara = PlayerCharacter(jobID: job.id)
             chara.learnedSkills = JobCatalog.starterSkills(for: job)
             chara.placedSkills = Array(repeating: nil, count: job.slotCount)
             chara.placedSkills[0] = chara.learnedSkills.first
+            // レア職は進化がないため、加入時から第一必殺技を持つ
+            if job.category == .rare {
+                chara.ultimate = JobCatalog.ultimate(for: job, stage: 1)
+            }
             data.characters.append(chara)
         } else {
-            data.guild.scoutFailCount += 1
+            data.guild.scoutFails[visitor.jobID, default: 0] += 1
         }
         save()
         return success

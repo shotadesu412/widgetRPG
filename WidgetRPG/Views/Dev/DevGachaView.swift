@@ -196,7 +196,7 @@ struct DevGachaView: View {
                     Text("来訪者は全員すでに仲間。この日は見送り。")
                         .font(.caption).foregroundStyle(Palette.textSecondary)
                 } else if let p = last.picked {
-                    Text("\(p.id)(\(Int(last.rate * 100))%)をスカウト → ")
+                    Text("\(p.name)(\(Int(last.rate * 100))%)をスカウト → ")
                         .font(.caption).foregroundStyle(Palette.textPrimary)
                     + Text(last.success ? "成功!" : "失敗…(次回率アップ)")
                         .font(.caption.bold())
@@ -221,7 +221,7 @@ struct DevGachaView: View {
         let color = tierColor(c.tier)
         return VStack(spacing: 2) {
             Text(c.tier.label).font(.system(size: 9, weight: .bold)).foregroundStyle(color)
-            Text(c.id).font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.textPrimary)
+            Text(c.name).font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.textPrimary)
                 .lineLimit(1)
             Text(isPick ? (last.success ? "成功" : "失敗") : (owned ? "所持" : "\(Int(model.rate(c) * 100))%"))
                 .font(.system(size: 10)).monospacedDigit()
@@ -273,7 +273,7 @@ struct DevGachaView: View {
         return HStack(spacing: 6) {
             RoundedRectangle(cornerRadius: 2).fill(tierColor(tier)).frame(width: 3, height: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(c.id).font(.system(size: 13, weight: .bold))
+                Text(c.name).font(.system(size: 13, weight: .bold))
                     .foregroundStyle(owned ? Palette.hpGreen : Palette.textPrimary)
                     .lineLimit(1)
                 Text(owned ? "仲間" : "率\(Int(model.rate(c) * 100))%\(f > 0 ? " ・失\(f)" : "")")

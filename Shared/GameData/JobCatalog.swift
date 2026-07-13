@@ -7,7 +7,24 @@ import Foundation
 /// 各職は (base + growth×(Lv-1)) × 進化倍率 がこの水準感に揃うよう配分している。
 /// メイン攻略の想定: ルルイエ最終Lv30 / 無貌最終Lv45 / 混沌最終Lv65 / 禁書最終Lv75
 enum JobCatalog {
-    static let all: [Job] = normal + specialBattle + specialSupport
+    static let all: [Job] = normal + specialBattle + specialSupport + rare
+
+    // MARK: - レアキャラ(ギルドの低確率来訪。進化なし・加入時から必殺技持ち)
+
+    static let rare: [Job] = [
+        Job(id: "angel", category: .rare,
+            stageNames: ["天使"],
+            element: .electric, slotCount: 4,
+            baseStats: BaseStats(hp: 120, attack: 45, defense: 30, speed: 40, magic: 55),
+            growth: BaseStats(hp: 5, attack: 2, defense: 1, speed: 1, magic: 1),
+            speciality: "裁きの雷と癒しを併せ持つ"),
+        Job(id: "akuma", category: .rare,
+            stageNames: ["悪魔"],
+            element: .dark, slotCount: 4,
+            baseStats: BaseStats(hp: 150, attack: 50, defense: 45, speed: 25, magic: 40),
+            growth: BaseStats(hp: 6, attack: 2, defense: 1, speed: 0, magic: 1),
+            speciality: "禁忌の力を宿す異形"),
+    ]
 
     // MARK: - 通常キャラ(進化: ひらがな → カタカナ → 漢字)
 
@@ -151,10 +168,10 @@ enum JobCatalog {
         all.first { $0.id == id } ?? normal[0]
     }
 
-    /// レベルアップ・進化で習得するスキルの見本(本実装ではテーブル化する)
+    /// 加入時の初期スキル
     static func starterSkills(for job: Job) -> [Skill] {
         switch job.category {
-        case .normal, .specialBattle:
+        case .normal, .specialBattle, .rare:
             [Skill(name: "\(job.stageNames[0])の一撃", kind: .attack, power: 120, element: job.element)]
         case .specialSupport:
             [Skill(name: "応急手当", kind: .heal, power: 60, element: nil)]
@@ -162,15 +179,14 @@ enum JobCatalog {
     }
 
     /// 進化で習得する必殺技(stage 1=第一必殺技、stage 2=第二必殺技)。
-    /// スロットマシンは必殺技を持たない
+    /// 必要周回数は必殺技の強さに連動(UltimateSkill.loops(forPower:))。
+    /// スロットマシンは必殺技を持たない。レア職(進化なし)は加入時に第一必殺技を持つ
     static func ultimate(for job: Job, stage: Int) -> UltimateSkill? {
         if job.id == "slot_machine" { return nil }
         let kind: UltimateKind = job.element == .water ? .heal : .damageAll
-        if stage <= 1 {
-            return UltimateSkill(name: "\(job.name(atStage: 1))の極意",
-                                 kind: kind, power: 230, requiredLoops: 3)
-        }
-        return UltimateSkill(name: "\(job.name(atStage: 2))の奥義",
-                             kind: kind, power: 320, requiredLoops: 3)
+        let power = stage <= 1 ? 230 : 320
+        let name = stage <= 1 ? "\(job.name(atStage: 1))の極意" : "\(job.name(atStage: 2))の奥義"
+        return UltimateSkill(name: name, kind: kind, power: power,
+                             requiredLoops: UltimateSkill.loops(forPower: power))
     }
 }

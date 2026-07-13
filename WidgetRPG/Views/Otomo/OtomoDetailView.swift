@@ -59,7 +59,7 @@ struct OtomoDetailView: View {
                                 .foregroundStyle(Palette.background)
                         }
                     } else if otomo.stage < otomo.maxStage {
-                        Text("Lv\((otomo.stage + 1) * 10)で進化できる")
+                        Text("Lv\(otomo.requiredEvolutionLevel)で進化できる")
                             .font(.caption2)
                             .foregroundStyle(Palette.textSecondary)
                     }
@@ -144,6 +144,32 @@ struct OtomoDetailView: View {
                         Text("必殺技なし")
                             .font(.caption2)
                             .foregroundStyle(Palette.textSecondary)
+                    }
+
+                    Divider().background(Palette.panelBorder)
+                    Text("パッシブ")
+                        .font(.caption.bold())
+                        .foregroundStyle(Palette.accent)
+                    if otomo.passives.isEmpty {
+                        Text("なし")
+                            .font(.caption2)
+                            .foregroundStyle(Palette.textSecondary)
+                    } else {
+                        ForEach(Array(otomo.passives.enumerated()), id: \.offset) { _, passive in
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 5) {
+                                    Text("\(passive.kind.label) +\(passive.value)%")
+                                        .font(.caption)
+                                        .foregroundStyle(Palette.textPrimary)
+                                    if let tier = passive.tier {
+                                        TierBadge(tier: tier)
+                                    }
+                                }
+                                Text(passive.kind.effectDescription)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Palette.textSecondary)
+                            }
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

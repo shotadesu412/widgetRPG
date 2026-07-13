@@ -13,6 +13,24 @@ enum ScoutTier: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// 初期スカウト率(%)
+    var initialScoutRate: Double {
+        switch self {
+        case .basic: 25
+        case .special: 10
+        case .rare: 30
+        }
+    }
+
+    /// スカウト失敗ごとの上昇(%)。レアは固定
+    var scoutFailStep: Double {
+        switch self {
+        case .basic: 5
+        case .special: 4
+        case .rare: 0
+        }
+    }
+
     /// 集め切りを速くする貪欲方策の優先度(小さいほど優先)
     var priority: Int {
         switch self {
@@ -24,7 +42,8 @@ enum ScoutTier: String, CaseIterable, Identifiable, Hashable {
 }
 
 struct GachaCharacter: Identifiable, Hashable {
-    let id: String   // 表示名を兼ねる
+    let id: String   // ジョブID(JobCatalogと対応)
+    let name: String // 表示名
     let tier: ScoutTier
 }
 
@@ -41,15 +60,28 @@ struct GachaConfig: Equatable {
 
 /// スカウトの純粋ロジック。手動プレイとモンテカルロ期待値の両方から使う。
 enum GachaCore {
-    /// 標準のキャラ一覧
+    /// スカウト対象のキャラ一覧(基本10 + 特殊戦闘4 + レア2)。
+    /// 特殊支援キャラはスカウト対象外(入手手段は今後別途)
     static let roster: [GachaCharacter] = {
-        let basic = ["剣士", "賢者", "狂戦士", "魔法使い", "アーチャー", "武術家", "鬼", "侍", "忍者", "アサシン"]
-        let special = ["スロットマシン", "タイムキーパー", "獣使い", "ゾンビ"]
-        let rare = ["天使", "悪魔"]
-        return basic.map { GachaCharacter(id: $0, tier: .basic) }
-            + special.map { GachaCharacter(id: $0, tier: .special) }
-            + rare.map { GachaCharacter(id: $0, tier: .rare) }
+        let basic: [(String, String)] = [
+            ("swordsman", "剣士"), ("sage", "賢者"), ("berserker", "狂戦士"),
+            ("mage", "魔法使い"), ("archer", "アーチャー"), ("monk", "武術家"),
+            ("oni", "鬼"), ("samurai", "侍"), ("ninja", "忍者"), ("assassin", "アサシン"),
+        ]
+        let special: [(String, String)] = [
+            ("slot_machine", "スロットマシン"), ("time_keeper", "タイムキーパー"),
+            ("beast_master", "獣使い"), ("zombie", "ゾンビ"),
+        ]
+        let rare: [(String, String)] = [("angel", "天使"), ("akuma", "悪魔")]
+        return basic.map { GachaCharacter(id: $0.0, name: $0.1, tier: .basic) }
+            + special.map { GachaCharacter(id: $0.0, name: $0.1, tier: .special) }
+            + rare.map { GachaCharacter(id: $0.0, name: $0.1, tier: .rare) }
     }()
+
+    /// ジョブIDからスカウト区分を引く
+    static func tier(ofJobID id: String) -> ScoutTier? {
+        roster.first { $0.id == id }?.tier
+    }
 
     static let countInTier: [ScoutTier: Int] = Dictionary(
         grouping: roster, by: \.tier

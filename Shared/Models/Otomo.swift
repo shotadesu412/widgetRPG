@@ -93,6 +93,8 @@ struct Otomo: Identifiable, Codable, Hashable {
     /// スロット位置(0開始)→ スキル。位置は孵化時にランダムで決まる。
     /// 空き位置は通常攻撃
     var skillPositions: [Int: Skill] = [:]
+    /// パッシブ(メインキャラ・防具より少し弱め。孵化時に付与)
+    var passives: [Passive] = []
     var ultimate: UltimateSkill? // 必殺技持ちは少なめ
     var slotCount = 3
 
@@ -106,8 +108,11 @@ struct Otomo: Identifiable, Codable, Hashable {
     /// 星の数に応じた進化上限(星1=0回、星2=1回、星3=2回)
     var maxStage: Int { species().canEvolve ? rarity.rawValue - 1 : 0 }
 
-    /// 進化可能か(キャラと同じレベル条件。素材は不要)
-    var canEvolve: Bool { stage < maxStage && level >= (stage + 1) * 10 }
+    /// 次の進化に必要なレベル(第一進化Lv20 / 第二進化Lv40)
+    var requiredEvolutionLevel: Int { stage == 0 ? 20 : 40 }
+
+    /// 進化可能か(レベル条件のみ。素材は不要)
+    var canEvolve: Bool { stage < maxStage && level >= requiredEvolutionLevel }
 
     /// ステータスの基準割合(同レベルの標準メインキャラ比)。
     /// 星1=60% / 星2=65% / 星3=70% / 伝説・神話=80%。

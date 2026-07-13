@@ -212,17 +212,15 @@ struct GuildSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("ギルド")
-                    .font(.headline)
-                    .foregroundStyle(Palette.accent)
-                Spacer()
-                Text("成功率 \(Int(game.data.guild.scoutChance * 100))%")
-                    .font(.caption2)
-                    .foregroundStyle(Palette.textSecondary)
-            }
+            Text("ギルド")
+                .font(.headline)
+                .foregroundStyle(Palette.accent)
 
-            if game.data.guild.scoutedToday && game.data.guildTickets == 0 {
+            if game.data.guild.visitors.isEmpty {
+                Text("新たな来訪者はいない(すべてのキャラが仲間になっている)")
+                    .font(.caption)
+                    .foregroundStyle(Palette.textSecondary)
+            } else if game.data.guild.scoutedToday && game.data.guildTickets == 0 {
                 Text("本日のスカウトは終了した。また明日、新たな来訪者が現れる")
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
@@ -248,7 +246,11 @@ struct GuildSection: View {
                                     .lineLimit(1)
                                 Text(job.category.label)
                                     .font(.system(size: 9))
-                                    .foregroundStyle(Palette.textSecondary)
+                                    .foregroundStyle(job.category == .rare ? Palette.accent : Palette.textSecondary)
+                                // スカウト率はキャラごとに独立(失敗で上昇)
+                                Text("率 \(Int(game.data.guild.scoutChance(forJobID: visitor.jobID) * 100))%")
+                                    .font(.system(size: 9).bold().monospaced())
+                                    .foregroundStyle(Palette.accent)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)

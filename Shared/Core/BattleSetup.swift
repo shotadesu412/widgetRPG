@@ -34,12 +34,15 @@ extension BattleEngine {
             if let weapon = data.weapon(id: chara.weaponID) {
                 unit.weaponInfo = (icon: weapon.type.symbolName, name: weapon.name)
             }
-            // キャラ自身のパッシブ(Lv30/60/80)+防具の解放済みパッシブ
+            // キャラ自身のパッシブ(Lv30/60/80)+防具の解放済みパッシブ(戦闘に反映)
+            unit.gamePassives = chara.passives
             unit.extraPassiveLabels = chara.passives.map { "\($0.kind.label) +\($0.value)%" }
             if let armor = data.armor(id: chara.armorID) {
                 unit.armorInfo = (icon: "shield.fill", name: armor.name)
+                unit.gamePassives += armor.activePassives
                 unit.extraPassiveLabels += armor.activePassives.map { "\($0.kind.label) +\($0.value)%(防具)" }
             }
+            BattleEngine.applyStaticPassives(&unit)
             engine.allies.append(unit)
         }
 
@@ -51,13 +54,18 @@ extension BattleEngine {
                 otomo.skillPositions[index].map(action(from:)) ?? .normal
             }
             let ult = otomo.ultimate.map(action(from:))
-            engine.allies.append(Unit(
+            var unit = Unit(
                 name: otomo.displayName, isAlly: true, element: species.element,
                 maxHP: stats.hp, hp: stats.hp,
                 attack: stats.attack, defense: stats.defense, speed: stats.speed, magic: stats.magic,
                 slots: slots, ultimate: ult, ultimateLoops: otomo.ultimate?.requiredLoops ?? 0,
                 spriteKey: species.id
-            ))
+            )
+            // オトモのパッシブ(メインより弱め)も戦闘に反映
+            unit.gamePassives = otomo.passives
+            unit.extraPassiveLabels = otomo.passives.map { "\($0.kind.label) +\($0.value)%" }
+            BattleEngine.applyStaticPassives(&unit)
+            engine.allies.append(unit)
         }
 
         let boss = EnemyCatalog.enemy(id: bossEnemyID)
@@ -109,7 +117,7 @@ extension BattleEngine {
                 BattleAction(name: "姿なき修復", kind: .healFlat(amount: heal)),
             ],
             BattleAction(name: "千の異形", kind: .damage(pct: 250, target: .allEnemies, inflict: .brainwash, inflictChance: 50)),
-            2, [.lowHPRegen(thresholdPct: 50, amount: regen)])
+            UltimateSkill.loops(forPower: 250), [.lowHPRegen(thresholdPct: 50, amount: regen)])
         case "cthulhu_boss":
             return ([
                 BattleAction(name: "触手の薙ぎ払い", kind: .damage(pct: 150, target: .singleEnemy, inflict: .poison, inflictChance: 30)),
@@ -117,7 +125,7 @@ extension BattleEngine {
                 BattleAction(name: "深海の再生", kind: .healFlat(amount: heal)),
             ],
             BattleAction(name: "ルルイエの呼び声", kind: .damage(pct: 250, target: .allEnemies, inflict: .speedDown, inflictChance: 50)),
-            2, [.lowHPRegen(thresholdPct: 50, amount: regen)])
+            UltimateSkill.loops(forPower: 250), [.lowHPRegen(thresholdPct: 50, amount: regen)])
         case "azathoth_boss":
             return ([
                 BattleAction(name: "混沌の一撃", kind: .damage(pct: 170, target: .singleEnemy, inflict: .weakness, inflictChance: 30)),
@@ -125,7 +133,7 @@ extension BattleEngine {
                 BattleAction(name: "無窮の脈動", kind: .healFlat(amount: heal)),
             ],
             BattleAction(name: "白痴の宴", kind: .damage(pct: 300, target: .allEnemies, inflict: .weakness, inflictChance: 50)),
-            2, [.lowHPRegen(thresholdPct: 50, amount: regen)])
+            UltimateSkill.loops(forPower: 300), [.lowHPRegen(thresholdPct: 50, amount: regen)])
         case "necronomicon_boss":
             return ([
                 BattleAction(name: "禁書の裁き", kind: .damage(pct: 140, target: .singleEnemy, inflict: .burn, inflictChance: 30)),
@@ -133,7 +141,7 @@ extension BattleEngine {
                 BattleAction(name: "綴じ直し", kind: .healFlat(amount: heal)),
             ],
             BattleAction(name: "禁断の章句", kind: .damage(pct: 250, target: .allEnemies, inflict: .reverse, inflictChance: 50)),
-            2, [.lowHPRegen(thresholdPct: 50, amount: regen)])
+            UltimateSkill.loops(forPower: 250), [.lowHPRegen(thresholdPct: 50, amount: regen)])
         case "dragon_enemy":
             return ([
                 BattleAction(name: "爪撃", kind: .damage(pct: 150, target: .singleEnemy)),
@@ -141,7 +149,7 @@ extension BattleEngine {
                 .normal,
             ],
             BattleAction(name: "劫火", kind: .damage(pct: 220, target: .allEnemies, inflict: .burn, inflictChance: 40)),
-            2, [])
+            UltimateSkill.loops(forPower: 220), [])
         default:
             // 雑魚・中ボスは通常攻撃のみ
             return ([.normal, .normal, .normal], nil, 0, [])
@@ -171,19 +179,36 @@ extension BattleEngine {
                     inflict: Bool.random() ? .attackDown : .speedDown, inflictChance: 40))
             }
         }
+        // スキルの対象指定(攻撃系=敵、回復系=味方に読み替え)
+        let enemyTarget: ActionTarget = {
+            switch skill.target ?? .single {
+            case .single: return .singleEnemy
+            case .all: return .allEnemies
+            case .random2: return .randomEnemies(2)
+            }
+        }()
+        let allyTarget: ActionTarget = (skill.target ?? .single) == .all ? .allAllies : .lowestAlly
+
         return switch skill.kind {
         case .attack, .specialAttack:
-            BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy))
+            BattleAction(name: skill.name, kind: .damage(
+                pct: skill.power, target: enemyTarget,
+                inflict: skill.ailment, inflictChance: skill.ailmentChance))
         case .magic:
-            BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, stat: .magic))
+            BattleAction(name: skill.name, kind: .damage(
+                pct: skill.power, target: enemyTarget, stat: .magic,
+                inflict: skill.ailment, inflictChance: skill.ailmentChance))
         case .heal:
-            BattleAction(name: skill.name, kind: .healByMagic(target: .lowestAlly))
+            skill.percentBased
+                ? BattleAction(name: skill.name, kind: .healPercent(pct: skill.power, target: allyTarget))
+                : BattleAction(name: skill.name, kind: .healByMagic(pct: skill.power, target: allyTarget))
         case .buff:
             BattleAction(name: skill.name, kind: .buffAttack(pct: max(5, skill.power / 10), target: .selfUnit))
         case .debuff:
-            BattleAction(name: skill.name, kind: .debuffSpeed(pct: max(5, skill.power / 10), target: .singleEnemy))
+            BattleAction(name: skill.name, kind: .debuffSpeed(pct: max(5, skill.power / 10), target: enemyTarget))
         case .barrier:
-            BattleAction(name: skill.name, kind: .defenseStance(pct: 30, slots: 2))
+            // バリア値はスキルの power(15/20/30 で3段階)
+            BattleAction(name: skill.name, kind: .defenseStance(pct: skill.power, slots: 2))
         }
     }
 
@@ -195,7 +220,7 @@ extension BattleEngine {
         case .damageAll, .triggerWeaponSkills:
             kind = .damage(pct: ultimate.power, target: .allEnemies)
         case .heal:
-            kind = .healByMagic(target: .lowestAlly)
+            kind = .healByMagic(pct: ultimate.power, target: .allAllies)
         case .buff, .extraActions:
             kind = .buffAttack(pct: max(10, ultimate.power / 10), target: .selfUnit)
         case .stopEnemies:
@@ -250,7 +275,7 @@ extension BattleEngine {
                  maxHP: 350, hp: 350, attack: 70, defense: 95, speed: 65, magic: 40,
                  slots: [
                     BattleAction(name: "タコパンチ", kind: .damage(pct: 60, target: .randomEnemies(2))),
-                    BattleAction(name: "タコヒール", kind: .healByMagic(target: .lowestAlly)),
+                    BattleAction(name: "タコヒール", kind: .healByMagic(pct: 100, target: .lowestAlly)),
                     BattleAction(name: "タコタコ", kind: .buffAttack(pct: 10, target: .randomAlly)),
                  ],
                  ultimate: BattleAction(name: "タコラッシュ", kind: .damage(pct: 40, target: .randomEnemies(8))),

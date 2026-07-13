@@ -80,11 +80,16 @@ struct GuildState: Codable, Hashable {
     var visitors: [GuildVisitor] = []
     /// 最後に来訪者を更新した日(日付単位)
     var lastVisitDay: Date?
-    /// スカウト失敗ごとに確率が上がっていく
-    var scoutFailCount = 0
+    /// キャラごとのスカウト失敗回数(失敗で確率が上がる。成功でリセット)
+    var scoutFails: [String: Int] = [:]
     /// 本日スカウト済みか(ギルドチケットで追加スカウト可)
     var scoutedToday = false
 
-    /// スカウト成功率(初期は低め、失敗ごとに上昇)
-    var scoutChance: Double { min(0.9, 0.2 + Double(scoutFailCount) * 0.06) }
+    /// キャラごとのスカウト成功率。
+    /// ティア別: 基本 初期25%+失敗5% / 特殊 初期10%+失敗4% / レア 30%固定
+    func scoutChance(forJobID jobID: String) -> Double {
+        guard let tier = GachaCore.tier(ofJobID: jobID) else { return 0.2 }
+        let rate = tier.initialScoutRate + tier.scoutFailStep * Double(scoutFails[jobID] ?? 0)
+        return min(0.95, rate / 100)
+    }
 }

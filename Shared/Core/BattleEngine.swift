@@ -8,6 +8,7 @@ enum ActionTarget: Hashable {
     case allEnemies          // 敵全体
     case randomEnemies(Int)  // ランダムな敵にヒット数ぶん(毎回抽選)
     case lowestAlly          // 最もHP割合の低い味方
+    case allAllies           // 味方全体
     case randomAlly          // ランダムな味方
     case selfUnit            // 自分
 }
@@ -19,41 +20,7 @@ enum DamageStat: Hashable {
     case attackPlusMagic  // 攻撃力+魔力の合計
 }
 
-/// 状態異常。解除判定はかかったキャラの行動の終わりに行う
-enum Ailment: String, CaseIterable, Codable, Hashable {
-    case poison     // 毒: 現在HPの5%のダメージを行動ごとに受ける
-    case brainwash  // 洗脳: スロットが50%で通常攻撃に変わる
-    case burn       // 火傷: かかったキャラの攻撃力の25%のダメージを行動ごとに受ける
-    case reverse    // 逆光: スロットが逆に回る。1→3を跨いだら必殺ターンも1下がる
-    case weakness   // 弱体化: 被ダメージ20%アップ
-    case attackDown // 攻撃低下: 攻撃30%低下
-    case speedDown  // 速度低下: 速度30%低下
-
-    var label: String {
-        switch self {
-        case .poison: "毒"
-        case .brainwash: "洗脳"
-        case .burn: "火傷"
-        case .reverse: "逆光"
-        case .weakness: "弱体化"
-        case .attackDown: "攻撃低下"
-        case .speedDown: "速度低下"
-        }
-    }
-
-    /// 行動の終わりに解除される確率(%)
-    var cureChance: Int {
-        switch self {
-        case .poison: 20
-        case .brainwash: 40
-        case .burn: 30
-        case .reverse: 40
-        case .weakness: 30
-        case .attackDown: 30
-        case .speedDown: 40
-        }
-    }
-}
+// 状態異常(Ailment)の定義は Shared/Models/Skill.swift に移動
 
 /// 戦闘中の1行動。スキル・必殺技・通常攻撃を統一して表現する。
 struct BattleAction: Hashable {
@@ -67,8 +34,10 @@ struct BattleAction: Hashable {
         case damage(pct: Int, target: ActionTarget, stat: DamageStat = .attack,
                     critChance: Int = 0, hits: ClosedRange<Int> = 1...1,
                     inflict: Ailment? = nil, inflictChance: Int = 0)
-        /// 術者の魔力ぶん回復
-        case healByMagic(target: ActionTarget)
+        /// 術者の魔力×pct% を回復
+        case healByMagic(pct: Int, target: ActionTarget)
+        /// 対象の最大HPの pct% を回復(割合回復)
+        case healPercent(pct: Int, target: ActionTarget)
         /// 固定量回復(+任意で自身の防御を一定時間上昇)
         case healFlat(amount: Int, defBuffPct: Int = 0)
         /// 対象の攻撃を一定%上昇(術者の次行動まで)
@@ -178,8 +147,14 @@ final class BattleEngine: ObservableObject {
         var ultimate: BattleAction?
         var ultimateLoops = 0
         var reviveChance = 0
+        /// ダメージを肩代わりするバリア量(プチバリア等)
+        var barrier = 0
         var spriteKey: String
         var passives: [BattlePassive] = []
+        /// キャラ/防具/オトモ由来のパッシブ(奇偶スロット強化・属性強化などを戦闘に反映)
+        var gamePassives: [Passive] = []
+        /// 現在の行動に適用するスロット系パッシブのダメージ倍率(行動ごとに再計算)
+        var slotDamageMul: Double = 1.0
 
         // 簡易詳細(戦闘中に見る詳細)用の表示情報
         /// メインキャラかどうか(タブ分類用。オトモ・敵は false)
@@ -370,18 +345,28 @@ final class BattleEngine: ObservableObject {
 
         // 4. 行動本体。足元にスキル名を出す
         if unit.ultimateReady, let ultimate = unit.ultimate {
+            unit.slotDamageMul = 1.0 // スロット系パッシブは必殺技に乗らない
             setActionLabel(ultimate.name, on: &unit)
             setTransientState(.ultimate, on: &unit)
             appendLog("必殺技! \(unit.name)の「\(ultimate.name)」!!")
             perform(ultimate, by: &unit)
             unit.loops = 0
         } else {
-            var action = unit.slots.isEmpty ? .normal : unit.slots[unit.slotIndex]
+            let original = unit.slots.isEmpty ? BattleAction.normal : unit.slots[unit.slotIndex]
+            // 空きスロットの通常攻撃か(洗脳による通常攻撃化には emptySlotBoost は乗らない)
+            let isEmptySlotNormal: Bool = {
+                if case .normalAttack = original.kind { return true }
+                return false
+            }()
+            var action = original
             // 洗脳: スロットが50%で通常攻撃に変わる
             if unit.ailments.contains(.brainwash), Int.random(in: 0..<100) < 50, action.kind != .normalAttack {
                 appendLog("\(unit.name)は洗脳されている……!")
                 action = .normal
             }
+            // スロット系パッシブ(奇偶/1周目/2周目/空きスロット強化)の倍率
+            unit.slotDamageMul = Self.slotPassiveMul(
+                unit, slotIndex: unit.slotIndex, emptySlotNormal: isEmptySlotNormal)
             setActionLabel(action.name, on: &unit)
             setTransientState(action.spriteState, on: &unit)
             perform(action, by: &unit)
@@ -447,6 +432,44 @@ final class BattleEngine: ObservableObject {
         unit.actionLabelTimer = actionBeat + 0.3
     }
 
+    /// スロット系パッシブのダメージ倍率(奇数/偶数スロット・1周目/2周目・空きスロット通常攻撃)
+    static func slotPassiveMul(_ unit: Unit, slotIndex: Int, emptySlotNormal: Bool) -> Double {
+        var mul = 1.0
+        let slotNumber = slotIndex + 1 // 1始まり
+        for p in unit.gamePassives {
+            let bonus = 1.0 + Double(p.value) / 100
+            switch p.kind {
+            case .oddSlotBoost where slotNumber % 2 == 1: mul *= bonus
+            case .evenSlotBoost where slotNumber % 2 == 0: mul *= bonus
+            case .firstLoopBoost where unit.currentLoop == 1: mul *= bonus
+            case .secondLoopBoost where unit.currentLoop == 2: mul *= bonus
+            case .emptySlotBoost where emptySlotNormal: mul *= bonus
+            default: break
+            }
+        }
+        return mul
+    }
+
+    /// 開戦時パッシブの適用(全ステータス上昇・プチバリア)。ユニット組み立て後に呼ぶ
+    static func applyStaticPassives(_ unit: inout Unit) {
+        for p in unit.gamePassives {
+            switch p.kind {
+            case .statBoost:
+                let mul = 1.0 + Double(p.value) / 100
+                unit.maxHP = Int(Double(unit.maxHP) * mul)
+                unit.hp = Int(Double(unit.hp) * mul)
+                unit.attack = Int(Double(unit.attack) * mul)
+                unit.defense = Int(Double(unit.defense) * mul)
+                unit.speed = Int(Double(unit.speed) * mul)
+                unit.magic = Int(Double(unit.magic) * mul)
+            case .miniBarrier:
+                unit.barrier += unit.maxHP * p.value / 100
+            default:
+                break
+            }
+        }
+    }
+
     // MARK: - 行動の解決
 
     private func perform(_ action: BattleAction, by unit: inout Unit) {
@@ -458,11 +481,20 @@ final class BattleEngine: ObservableObject {
             dealToTargets(from: &unit, pct: pct, target: target, stat: stat,
                           critChance: critChance, hits: hits,
                           inflict: inflict, inflictChance: inflictChance, label: action.name)
-        case let .healByMagic(target):
+        case let .healByMagic(pct, target):
+            let amount = max(1, unit.magic * pct / 100)
             for id in resolveTargets(target, from: unit) {
-                heal(id: id, amount: unit.magic)
+                heal(id: id, amount: amount)
             }
-            appendLog("\(unit.name)の\(action.name)! 魔力ぶん回復した")
+            appendLog("\(unit.name)の\(action.name)! HPを\(amount)回復")
+        case let .healPercent(pct, target):
+            // 割合回復: 対象それぞれの最大HPの pct% を回復
+            for id in resolveTargets(target, from: unit) {
+                if let t = findUnit(id: id) {
+                    heal(id: id, amount: max(1, t.maxHP * pct / 100))
+                }
+            }
+            appendLog("\(unit.name)の\(action.name)! 最大HPの\(pct)%を回復")
         case let .healFlat(amount, defBuffPct):
             let before = unit.hp
             unit.hp = min(unit.maxHP, unit.hp + amount)
@@ -508,12 +540,18 @@ final class BattleEngine: ObservableObject {
     private func dealToTargets(from unit: inout Unit, pct: Int, target: ActionTarget,
                                stat: DamageStat, critChance: Int, hits: ClosedRange<Int>,
                                inflict: Ailment?, inflictChance: Int, label: String) {
-        let value: Int
+        var value: Int
         switch stat {
         case .attack: value = effectiveAttack(of: unit)
         case .magic: value = unit.magic
         case .attackPlusMagic: value = effectiveAttack(of: unit) + unit.magic
         }
+        // パッシブ補正: スロット系(行動時に計算済み)+属性強化(自属性攻撃)
+        var passiveMul = unit.slotDamageMul
+        for p in unit.gamePassives where p.kind == .elementBoost {
+            passiveMul *= 1.0 + Double(p.value) / 100
+        }
+        value = max(1, Int(Double(value) * passiveMul))
         // ヒット回数(双剣・リボルバー等)。ランダム対象は毎ヒット抽選し直す
         let hitCount = Int.random(in: hits)
         for _ in 0..<hitCount {
@@ -609,6 +647,12 @@ final class BattleEngine: ObservableObject {
         if isCrit { damage *= 2 }
         // 弱体化: 被ダメージ20%アップ
         if target.ailments.contains(.weakness) { damage = Int(Double(damage) * 1.2) }
+        // バリア(プチバリア等)が先にダメージを肩代わりする
+        if target.barrier > 0 {
+            let absorbed = min(target.barrier, damage)
+            target.barrier -= absorbed
+            damage -= absorbed
+        }
         target.hp = max(0, target.hp - damage)
         target.floating = FloatingNumber(value: damage, kind: .damage)
         appendLog("\(fromName)の\(label) → \(target.name)に\(damage)ダメージ\(isCrit ? "(会心!)" : "")")
@@ -660,6 +704,8 @@ final class BattleEngine: ObservableObject {
             return (0..<n).map { _ in foes.randomElement()!.id }
         case .lowestAlly:
             return friends.min { $0.hpRatio < $1.hpRatio }.map { [$0.id] } ?? []
+        case .allAllies:
+            return friends.map(\.id)
         case .randomAlly:
             return friends.randomElement().map { [$0.id] } ?? []
         case .selfUnit:

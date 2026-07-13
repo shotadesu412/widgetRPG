@@ -5,12 +5,14 @@ enum JobCategory: String, Codable, CaseIterable {
     case normal        // 通常キャラ(戦闘用、得意分野あり)
     case specialBattle // 特殊戦闘キャラ(進化数が少ない代わりに特殊効果)
     case specialSupport // 特殊キャラ(ステータス低め、編成でダンジョン特殊効果)
+    case rare          // レアキャラ(ギルドの低確率来訪。進化なし)
 
     var label: String {
         switch self {
         case .normal: "通常"
         case .specialBattle: "特殊戦闘"
         case .specialSupport: "特殊支援"
+        case .rare: "レア"
         }
     }
 }

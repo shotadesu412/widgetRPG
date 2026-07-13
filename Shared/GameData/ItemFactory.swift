@@ -120,9 +120,9 @@ enum ItemFactory {
         otomo.ivs = IndividualValues.roll(rarity: rarity, favored: egg.grade == .legendary)
 
         // スキルはカテゴリ+種族のプール(SkillCatalog)からレアリティ重み付きで抽選し、
-        // ランダムなスロット位置に付与する(星3は2個、それ以外は1〜2個)
+        // ランダムなスロット位置に付与する(星3は3個、それ以外は1〜2個)
         let pool = SkillCatalog.otomoPool(for: species)
-        let count = rarity == .star3 ? 2 : Int.random(in: 1...2)
+        let count = rarity == .star3 ? 3 : Int.random(in: 1...2)
         let entries = SkillCatalog.draw(from: pool, count: count)
         var positions = Array(0..<otomo.slotCount).shuffled()
         for entry in entries {
@@ -130,9 +130,14 @@ enum ItemFactory {
             otomo.skillPositions[positions.removeFirst()] = entry.make(element: species.element)
         }
 
+        // パッシブを1個付与(メインキャラ・防具より弱め=効果値0.7倍)
+        if let passiveEntry = SkillCatalog.draw(from: SkillCatalog.otomoPassives) {
+            otomo.passives = [passiveEntry.make(valueScale: 0.7)]
+        }
+
         if Int.random(in: 0..<5) == 0 { // 必殺技持ちは少なめ
             otomo.ultimate = UltimateSkill(name: "\(species.name)の咆哮", kind: .damageAll,
-                                           power: 200, requiredLoops: 3)
+                                           power: 200, requiredLoops: UltimateSkill.loops(forPower: 200))
         }
         return otomo
     }

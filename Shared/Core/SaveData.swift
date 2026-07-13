@@ -107,7 +107,7 @@ struct SaveData: Codable {
 
         data.shop.items = ItemFactory.randomShopItems(now: now)
         data.shop.nextRefresh = now.addingTimeInterval(TimeInterval(Int.random(in: 1800...7200)))
-        data.guild.visitors = IdleEngine.makeVisitors()
+        data.guild.visitors = IdleEngine.makeVisitors(ownedJobIDs: [hero.jobID])
         data.guild.lastVisitDay = Calendar.current.startOfDay(for: now)
 
         for arc in MainArc.allCases { data.mainProgress[arc.rawValue] = 0 }

@@ -20,15 +20,21 @@ enum IdleEngine {
 
     // MARK: - ギルド(毎日3人来訪)
 
-    static func makeVisitors() -> [GuildVisitor] {
-        let pool = JobCatalog.all.map(\.id)
-        return (0..<3).compactMap { _ in pool.randomElement().map { GuildVisitor(jobID: $0) } }
+    /// 来訪者3人を抽選する。出現率は 基本70% / 特殊25% / レア5%。
+    /// 所持済みキャラは出現せず、その分の出現率は残りのキャラに再分配される(GachaCore)
+    static func makeVisitors(ownedJobIDs: Set<String>) -> [GuildVisitor] {
+        // 未所持がいなければ来訪なし
+        guard GachaCore.roster.contains(where: { !ownedJobIDs.contains($0.id) }) else { return [] }
+        var rng = SystemRandomNumberGenerator()
+        return (0..<3).map { _ in
+            GuildVisitor(jobID: GachaCore.drawVisitor(owned: ownedJobIDs, config: GachaConfig(), using: &rng).id)
+        }
     }
 
     private static func refreshGuildIfNeeded(_ data: inout SaveData, now: Date) {
         let today = Calendar.current.startOfDay(for: now)
         if data.guild.lastVisitDay != today {
-            data.guild.visitors = makeVisitors()
+            data.guild.visitors = makeVisitors(ownedJobIDs: Set(data.characters.map(\.jobID)))
             data.guild.lastVisitDay = today
             data.guild.scoutedToday = false
         }
