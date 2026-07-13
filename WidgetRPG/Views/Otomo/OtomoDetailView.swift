@@ -86,35 +86,45 @@ struct OtomoDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .panelStyle()
 
-                // スキル詳細
+                // スキル詳細(スロット位置つき。空き位置は通常攻撃)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("スキル")
+                    Text("スキルスロット")
                         .font(.headline)
                         .foregroundStyle(Palette.accent)
-                    if otomo.skills.isEmpty {
-                        Text("スキルなし")
-                            .font(.caption)
-                            .foregroundStyle(Palette.textSecondary)
-                    } else {
-                        ForEach(otomo.skills) { skill in
-                            HStack(spacing: 8) {
-                                Image(systemName: skill.kind.symbolName)
-                                    .font(.caption)
-                                    .foregroundStyle(Palette.accent)
-                                    .frame(width: 20)
+                    ForEach(0..<otomo.slotCount, id: \.self) { index in
+                        HStack(spacing: 8) {
+                            Text("\(index + 1)")
+                                .font(.caption.bold())
+                                .frame(width: 22, height: 22)
+                                .background(Circle().fill(Palette.panelBorder))
+                            if let skill = otomo.skillPositions[index] {
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text("\(skill.name)(\(skill.kind.label))")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(Palette.textPrimary)
+                                    HStack(spacing: 5) {
+                                        Text("\(skill.name)(\(skill.kind.label))")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(Palette.textPrimary)
+                                        if let tier = skill.tier {
+                                            TierBadge(tier: tier)
+                                        }
+                                    }
                                     Text(skill.effectText)
                                         .font(.system(size: 10))
                                         .foregroundStyle(Palette.textSecondary)
                                 }
-                                Spacer()
+                            } else {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("空きスロット(通常攻撃)")
+                                        .font(.caption)
+                                        .foregroundStyle(Palette.textSecondary)
+                                    Text(NormalAttackInfo.effectText)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(Palette.textSecondary)
+                                }
                             }
-                            .padding(8)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
+                            Spacer()
                         }
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
                     }
 
                     if let ultimate = otomo.ultimate {

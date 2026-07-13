@@ -118,6 +118,28 @@ struct EquipmentGridView: View {
     }
 }
 
+/// 抽選レアリティのバッジ(普通/やや珍しい/珍しい)
+struct TierBadge: View {
+    let tier: DrawTier
+
+    private var color: Color {
+        switch tier {
+        case .common: Color(white: 0.45)
+        case .uncommon: Color(red: 0.45, green: 0.65, blue: 0.90)
+        case .rare: Palette.accent
+        }
+    }
+
+    var body: some View {
+        Text(tier.label)
+            .font(.system(size: 8, weight: .bold))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(color))
+            .foregroundStyle(tier == .common ? Color.white : Palette.background)
+    }
+}
+
 /// 装備カード(星の数をアイコンの上に表示)
 struct EquipCard: View {
     let rarity: Rarity
@@ -220,9 +242,14 @@ struct EquipmentDetailSheet: View {
                 } else {
                     ForEach(weapon.skillPositions.sorted(by: { $0.key < $1.key }), id: \.key) { pos, skill in
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("スロット\(pos + 1): \(skill.name)(\(skill.kind.label))")
-                                .font(.caption)
-                                .foregroundStyle(Palette.accent)
+                            HStack(spacing: 5) {
+                                Text("スロット\(pos + 1): \(skill.name)(\(skill.kind.label))")
+                                    .font(.caption)
+                                    .foregroundStyle(Palette.accent)
+                                if let tier = skill.tier {
+                                    TierBadge(tier: tier)
+                                }
+                            }
                             Text(skill.effectText)
                                 .font(.system(size: 10))
                                 .foregroundStyle(Palette.textSecondary)
@@ -280,6 +307,9 @@ struct EquipmentDetailSheet: View {
                                 Image(systemName: unlocked ? "lock.open.fill" : "lock.fill")
                                     .font(.system(size: 9))
                                 Text("\(passive.kind.label) +\(passive.value)%\(unlocked ? "" : "(強化\(index + 1)で解放)")")
+                                if let tier = passive.tier {
+                                    TierBadge(tier: tier)
+                                }
                             }
                             .font(.caption)
                             .foregroundStyle(unlocked ? Palette.accent : Palette.textSecondary.opacity(0.7))

@@ -49,6 +49,8 @@ struct Skill: Identifiable, Codable, Hashable {
     var element: Element?
     /// 武器スキルの場合の効果傾向
     var weaponEffect: WeaponEffect?
+    /// 抽選レアリティ(普通/やや珍しい/珍しい)。抽選以外で得たスキルは nil
+    var tier: DrawTier?
 
     /// スキル効果の説明文。戦闘での実際の挙動(BattleSetup.action(from:))と対応させる
     var effectText: String {
@@ -176,4 +178,6 @@ struct Passive: Codable, Hashable {
     var kind: PassiveKind
     /// 効果量(%)
     var value: Int
+    /// 抽選レアリティ(普通/やや珍しい/珍しい)
+    var tier: DrawTier?
 }

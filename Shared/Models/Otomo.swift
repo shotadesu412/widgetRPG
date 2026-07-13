@@ -90,7 +90,9 @@ struct Otomo: Identifiable, Codable, Hashable {
     var stage = 0
     var level = 1
     var exp = 0
-    var skills: [Skill] = []
+    /// スロット位置(0開始)→ スキル。位置は孵化時にランダムで決まる。
+    /// 空き位置は通常攻撃
+    var skillPositions: [Int: Skill] = [:]
     var ultimate: UltimateSkill? // 必殺技持ちは少なめ
     var slotCount = 3
 

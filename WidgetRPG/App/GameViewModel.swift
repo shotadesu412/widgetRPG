@@ -197,17 +197,17 @@ final class GameViewModel: ObservableObject {
         save()
     }
 
-    /// オトモの進化(レベル条件のみ。進化でスキル習得)
+    /// オトモの進化(レベル条件のみ。進化で空きスロットにスキル習得)
     func evolveOtomo(_ otomo: Otomo) {
         guard otomo.canEvolve,
               let index = data.otomos.firstIndex(where: { $0.id == otomo.id }) else { return }
         data.otomos[index].stage += 1
         let species = otomo.species()
-        let newStage = data.otomos[index].stage
-        data.otomos[index].skills.append(
-            Skill(name: "\(species.name)の猛攻", kind: .specialAttack,
-                  power: 120 + newStage * 30, element: species.element)
-        )
+        // 空きスロットがあればプールから1つ抽選して習得
+        if let slot = (0..<otomo.slotCount).first(where: { data.otomos[index].skillPositions[$0] == nil }),
+           let entry = SkillCatalog.draw(from: SkillCatalog.otomoPool(for: species)) {
+            data.otomos[index].skillPositions[slot] = entry.make(element: species.element)
+        }
         save()
     }
 

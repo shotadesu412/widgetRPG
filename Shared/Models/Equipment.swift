@@ -110,15 +110,7 @@ enum ArmorType: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// 防具種ごとのパッシブ傾向
-    var passivePool: [PassiveKind] {
-        switch self {
-        case .plate: [.statBoost, .miniBarrier, .lowHPBoost]          // 防御干渉
-        case .cloak: [.elementBoost, .oddSlotBoost, .evenSlotBoost]   // 属性干渉
-        case .robe: [.statBoost, .secondLoopBoost, .otomoBoost]       // 魔力干渉
-        case .ring: [.doubleAct, .flatDamage, .emptySlotBoost, .firstLoopBoost] // 微量・強レア
-        }
-    }
+    // 防具種ごとに出るパッシブの管理は SkillCatalog.armorPassives に一元化
 }
 
 /// 防具。星と同じ数のパッシブが付与され、強化(最大3段階)ごとに1つずつ解放される。

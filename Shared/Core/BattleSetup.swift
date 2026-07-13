@@ -44,8 +44,9 @@ extension BattleEngine {
         for otomo in data.partyOtomos {
             let stats = otomo.grownStats
             let species = otomo.species()
+            // スキルは孵化時に決まったスロット位置に入る(空き位置は通常攻撃)
             let slots: [BattleAction] = (0..<otomo.slotCount).map { index in
-                index < otomo.skills.count ? action(from: otomo.skills[index]) : .normal
+                otomo.skillPositions[index].map(action(from:)) ?? .normal
             }
             let ult = otomo.ultimate.map(action(from:))
             engine.allies.append(Unit(

@@ -7,32 +7,16 @@ enum ItemFactory {
 
     private static let weaponNamePrefixes = ["錆びた", "鉄の", "無銘の", "輝く", "呪われた", "月光の", "深淵の"]
 
-    /// 武器種ごとのスキル(名前と効果傾向)
+    /// 武器種のプール(SkillCatalog)からレアリティ重み付きで抽選する
     private static func weaponSkill(for type: WeaponType, rarity: Rarity, element: Element?) -> Skill {
-        let r = Double(rarity.rawValue)
-        switch type {
-        case .sword:
-            return Skill(name: "強斬り", kind: .attack, power: Int(130 * (1.0 + r * 0.15)),
-                         element: element, weaponEffect: .single)
-        case .greatsword:
-            return Skill(name: "大回転斬り", kind: .attack, power: Int(90 * (1.0 + r * 0.15)),
-                         element: element, weaponEffect: .aoe)
-        case .dagger:
-            return Skill(name: "急所突き", kind: .attack, power: Int(100 * (1.0 + r * 0.15)),
-                         element: element, weaponEffect: .crit)
-        case .twinBlade:
-            return Skill(name: "二連撃", kind: .attack, power: Int(70 * (1.0 + r * 0.15)),
-                         element: element, weaponEffect: .multiHit)
-        case .staff:
-            return Skill(name: "魔力弾", kind: .magic, power: Int(130 * (1.0 + r * 0.15)),
-                         element: element, weaponEffect: .magic)
-        case .revolver:
-            return Skill(name: "乱れ撃ち", kind: .attack, power: Int(45 * (1.0 + r * 0.15)),
-                         element: element, weaponEffect: .randomHits)
-        case .bow:
-            return Skill(name: "狙い撃ち", kind: .debuff, power: Int(80 * (1.0 + r * 0.15)),
-                         element: element, weaponEffect: .debuff)
+        let pool = SkillCatalog.weaponSkills[type] ?? []
+        let scale = 1.0 + Double(rarity.rawValue) * 0.15
+        if let entry = SkillCatalog.draw(from: pool) {
+            return entry.make(element: element, powerScale: scale)
         }
+        // プール未定義時の保険
+        return Skill(name: "一撃", kind: .attack, power: Int(100 * scale),
+                     element: element, weaponEffect: .single)
     }
 
     static func randomWeapon(rarity: Rarity? = nil, type: WeaponType? = nil) -> Weapon {
@@ -81,14 +65,11 @@ enum ItemFactory {
             magic: type == .robe ? 4 * rarity.rawValue : 0
         )
 
-        // 星と同じ数のパッシブを防具種の傾向から付与(強化で順に解放)
-        let pool = type.passivePool
-        let valueScale = type == .ring ? 1 : 2 // 指輪は微量
-        let passives = (0..<rarity.rawValue).compactMap { _ in
-            pool.randomElement().map {
-                Passive(kind: $0, value: Int.random(in: 4...12) * valueScale * rarity.rawValue)
-            }
-        }
+        // 星と同じ数のパッシブを防具種のプール(SkillCatalog)から抽選(強化で順に解放)
+        let pool = SkillCatalog.armorPassives[type] ?? []
+        let valueScale = 0.5 + Double(rarity.rawValue) * 0.5 // 星1=1.0 / 星2=1.5 / 星3=2.0
+        let passives = SkillCatalog.draw(from: pool, count: rarity.rawValue)
+            .map { $0.make(valueScale: valueScale) }
 
         let name = "\(armorNamePrefixes.randomElement()!)\(type.label)"
         return Armor(name: name, type: type, rarity: rarity, weight: weight,
@@ -137,10 +118,18 @@ enum ItemFactory {
         var otomo = Otomo(speciesID: species.id, rarity: rarity)
         // 個体値: 星1・2は完全ランダム、星3はプラス寄り。伝説の卵は優遇
         otomo.ivs = IndividualValues.roll(rarity: rarity, favored: egg.grade == .legendary)
-        // キャラクタースロットにランダムでスキルが付与されている
-        otomo.skills = [
-            Skill(name: "\(species.name)の牙", kind: .attack, power: 100, element: species.element)
-        ]
+
+        // スキルはカテゴリ+種族のプール(SkillCatalog)からレアリティ重み付きで抽選し、
+        // ランダムなスロット位置に付与する(星3は2個、それ以外は1〜2個)
+        let pool = SkillCatalog.otomoPool(for: species)
+        let count = rarity == .star3 ? 2 : Int.random(in: 1...2)
+        let entries = SkillCatalog.draw(from: pool, count: count)
+        var positions = Array(0..<otomo.slotCount).shuffled()
+        for entry in entries {
+            guard !positions.isEmpty else { break }
+            otomo.skillPositions[positions.removeFirst()] = entry.make(element: species.element)
+        }
+
         if Int.random(in: 0..<5) == 0 { // 必殺技持ちは少なめ
             otomo.ultimate = UltimateSkill(name: "\(species.name)の咆哮", kind: .damageAll,
                                            power: 200, requiredLoops: 3)
