@@ -119,7 +119,6 @@ final class GameViewModel: ObservableObject {
             chara.learnedSkills = JobCatalog.starterSkills(for: job)
             chara.placedSkills = Array(repeating: nil, count: job.slotCount)
             chara.placedSkills[0] = chara.learnedSkills.first
-            chara.ultimate = JobCatalog.starterUltimate(for: job)
             data.characters.append(chara)
         } else {
             data.guild.scoutFailCount += 1
@@ -153,21 +152,33 @@ final class GameViewModel: ObservableObject {
 
     // MARK: - キャラ編集
 
-    /// 進化にはキャラの属性に対応した属性石を1つ消費する
+    /// 進化(Lv25/45+属性石1個消費)。第一進化で第一必殺技、第二進化で第二必殺技を習得
     func evolve(_ character: PlayerCharacter) {
-        let element = character.job().element
-        guard character.canEvolve,
-              data.stoneCount(element) > 0,
-              let index = data.characters.firstIndex(where: { $0.id == character.id }) else { return }
-        data.elementStones[element.rawValue, default: 1] -= 1
-        data.characters[index].stage += 1
-        // 進化でスキル・必殺技を習得
-        let job = character.job()
-        let newStage = data.characters[index].stage
-        data.characters[index].learnedSkills.append(
-            Skill(name: "\(job.name(atStage: newStage))の奥義", kind: .specialAttack,
-                  power: 140 + newStage * 40, element: job.element)
-        )
+        guard CharacterProgression.evolve(&data, characterID: character.id) else { return }
+        save()
+    }
+
+    /// オトモ合成: 同一種族・同一星のオトモを2体消費してレア度を1上げる。
+    /// スキルやパッシブは増えず、ステータス基準(メインキャラ比%)だけが上がる
+    func fuseOtomo(_ otomo: Otomo) {
+        guard otomo.rarity < .star3, otomo.species().canEvolve,
+              let index = data.otomos.firstIndex(where: { $0.id == otomo.id }) else { return }
+        // 素材: 同一種族・同一星(自分以外)。編成外・個体値の低い順に消費
+        let materials = data.otomos
+            .filter { $0.id != otomo.id && $0.speciesID == otomo.speciesID && $0.rarity == otomo.rarity }
+            .sorted {
+                let aParty = data.partyOtomoIDs.contains($0.id) ? 1 : 0
+                let bParty = data.partyOtomoIDs.contains($1.id) ? 1 : 0
+                if aParty != bParty { return aParty < bParty }
+                return $0.ivs.total < $1.ivs.total
+            }
+        guard materials.count >= 2 else { return }
+        let consumed = materials.prefix(2).map(\.id)
+        data.otomos.removeAll { consumed.contains($0.id) }
+        data.partyOtomoIDs.removeAll { consumed.contains($0) }
+        if let newIndex = data.otomos.firstIndex(where: { $0.id == otomo.id }) {
+            data.otomos[newIndex].rarity = Rarity(rawValue: otomo.rarity.rawValue + 1) ?? .star3
+        }
         save()
     }
 

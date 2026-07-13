@@ -109,10 +109,47 @@ struct Otomo: Identifiable, Codable, Hashable {
     /// 進化可能か(キャラと同じレベル条件。素材は不要)
     var canEvolve: Bool { stage < maxStage && level >= (stage + 1) * 10 }
 
+    /// ステータスの基準割合(同レベルの標準メインキャラ比)。
+    /// 星1=60% / 星2=65% / 星3=70% / 伝説・神話=80%。
+    /// 未進化分は1段階につき-5%(最終進化で星の上限に達する)
+    var statPercentOfMainCharacter: Double {
+        let base: Double
+        if !species().canEvolve {
+            base = 0.80 // 伝説・神話
+        } else {
+            switch rarity {
+            case .star1: base = 0.60
+            case .star2: base = 0.65
+            case .star3: base = 0.70
+            }
+        }
+        return base - 0.05 * Double(maxStage - stage)
+    }
+
+    /// レベルとレア度を反映したステータス。
+    /// 「同レベルの標準メインキャラ(剣士アンカー・進化込み)」の合計ステータスに
+    /// statPercentOfMainCharacter を掛けた総量を、種族のステータス比率で配分する
     var grownStats: BaseStats {
-        let base = species().baseStats.scaled(by: 1.0 + Double(rarity.rawValue - 1) * 0.25)
-        let leveled = (base + base.scaled(by: Double(level - 1) * 0.08)).scaled(by: 1.0 + Double(stage) * 0.4)
-        return ivs.applied(to: leveled)
+        let species = species()
+
+        // 標準メインキャラの合計ステータス(剣士アンカー: base279+9/Lv、進化はLv25/45)
+        let l = Double(level - 1)
+        let stageMul: Double = level >= 45 ? 1.5 : (level >= 25 ? 1.25 : 1.0)
+        let standardTotal = (279.0 + 9.0 * l) * stageMul
+
+        let budget = standardTotal * statPercentOfMainCharacter
+
+        // 種族の比率で配分
+        let s = species.baseStats
+        let sum = Double(max(1, s.hp + s.attack + s.defense + s.speed + s.magic))
+        let stats = BaseStats(
+            hp: max(1, Int(budget * Double(s.hp) / sum)),
+            attack: max(1, Int(budget * Double(s.attack) / sum)),
+            defense: max(1, Int(budget * Double(s.defense) / sum)),
+            speed: max(1, Int(budget * Double(s.speed) / sum)),
+            magic: max(1, Int(budget * Double(s.magic) / sum))
+        )
+        return ivs.applied(to: stats)
     }
 }
 

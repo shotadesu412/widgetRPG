@@ -35,6 +35,7 @@ struct PlayStats {
     var coinsSpent = 0
     var battleSeconds: [Double] = []
     var levelAtClear: [String: Int] = [:]
+    var fusions = 0
 }
 
 func day() -> Double { now.timeIntervalSince1970 / 86400 }
@@ -76,22 +77,30 @@ func manageEvolution() {
     let i = mainCharIndex()
     let chara = data.characters[i]
     guard chara.canEvolve else { return }
-    let element = chara.job().element
-    if data.stoneCount(element) > 0 {
-        data.elementStones[element.rawValue, default: 1] -= 1
-        data.characters[i].stage += 1
-        let job = chara.job()
-        data.characters[i].learnedSkills.append(
-            Skill(name: "\(job.name(atStage: chara.stage + 1))の奥義", kind: .specialAttack,
-                  power: 140 + (chara.stage + 1) * 40, element: job.element))
-        // 新スキルを空きスロットに配置
-        if let slot = data.characters[i].placedSkills.firstIndex(where: { $0 == nil }) {
-            data.characters[i].placedSkills[slot] = data.characters[i].learnedSkills.last
-        }
-        note("進化! → \(data.characters[i].displayName)(石消費、残\(data.stoneCount(element)))")
+    if CharacterProgression.evolve(&data, characterID: chara.id) {
+        note("進化! → \(data.characters[i].displayName)(必殺技: \(data.characters[i].ultimate?.name ?? "なし"))")
     } else {
         stats.stoneShortageEvents += 1
         stats.stoneWaitHours += Double(tickMinutes) / 60
+    }
+}
+
+func manageFusion() {
+    // 同一種族・同一星が3体以上いたら合成してレア度を上げる
+    for base in data.otomos where base.rarity < .star3 && base.species().canEvolve {
+        let sameKind = data.otomos.filter {
+            $0.id != base.id && $0.speciesID == base.speciesID && $0.rarity == base.rarity
+        }
+        guard sameKind.count >= 2 else { continue }
+        let consumed = sameKind.sorted { $0.ivs.total < $1.ivs.total }.prefix(2).map(\.id)
+        data.otomos.removeAll { consumed.contains($0.id) }
+        data.partyOtomoIDs.removeAll { consumed.contains($0) }
+        if let idx = data.otomos.firstIndex(where: { $0.id == base.id }) {
+            data.otomos[idx].rarity = Rarity(rawValue: base.rarity.rawValue + 1) ?? .star3
+            note("合成: \(base.displayName) → \(data.otomos[idx].rarity.stars)")
+            stats.fusions += 1
+        }
+        break
     }
 }
 
@@ -201,6 +210,7 @@ outer: while day() < maxDays {
         now = now.addingTimeInterval(TimeInterval(tickMinutes * 60))
         IdleEngine.process(&data, now: now)
         manageEggs()
+        manageFusion()
         manageShop()
         manageEvolution()
         if data.activeRun?.bossFound == true { found = true }
@@ -256,6 +266,6 @@ for arc in arcs {
 print("属性石: 不足で進化待ちになった時間 \(String(format: "%.1f", stats.stoneWaitHours))時間(ショップで石を見た回数\(stats.shopStonesSeen)/買えた\(stats.shopStonesBought))")
 print("卵: 入手\(stats.eggsObtained + stats.eggsHatched)個 孵化\(stats.eggsHatched)体 未処理の最大在庫\(stats.eggBacklogMax)個")
 print("経済: コイン残\(data.coins)(消費\(stats.coinsSpent)) 素材残\(data.materials)")
-print("オトモ: \(data.otomos.count)体 パーティ=\(data.partyOtomos.map { "\($0.displayName)\($0.rarity.stars)Lv\($0.level)" }.joined(separator: ","))")
+print("オトモ: \(data.otomos.count)体 合成\(stats.fusions)回 パーティ=\(data.partyOtomos.map { "\($0.displayName)\($0.rarity.stars)Lv\($0.level)" }.joined(separator: ","))")
 let gradeCount = Dictionary(grouping: data.eggs, by: \.grade).mapValues(\.count)
 print("卵在庫内訳: \(gradeCount.map { "\($0.key.label)×\($0.value)" }.sorted().joined(separator: " "))")

@@ -41,6 +41,11 @@ struct CharacterDetailView: View {
                     Text("Lv\(character.level)(次まで \(character.expToNext - character.exp))")
                         .font(.caption2)
                         .foregroundStyle(Palette.textSecondary)
+                    if let next = CharacterProgression.nextLevelReward(after: character.level) {
+                        Text("次の習得: Lv\(next.level) \(next.label)")
+                            .font(.caption2)
+                            .foregroundStyle(Palette.accent)
+                    }
 
                     if character.canEvolve {
                         // 進化にはキャラの属性に対応した属性石が必要
@@ -56,10 +61,18 @@ struct CharacterDetailView: View {
                                 .foregroundStyle(stones > 0 ? Palette.background : Palette.textSecondary)
                         }
                         .disabled(stones == 0)
+                    } else if character.stage < job.maxStage,
+                              let required = CharacterProgression.requiredEvolutionLevel(forStage: character.stage) {
+                        Text("Lv\(required)で進化できる(必殺技を習得)")
+                            .font(.caption2)
+                            .foregroundStyle(Palette.textSecondary)
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .panelStyle()
+
+                // キャラ自身のパッシブ(Lv30/60/80で習得)
+                passivesSection(character)
 
                 // ステータス
                 VStack(alignment: .leading, spacing: 6) {
@@ -169,11 +182,15 @@ struct CharacterDetailView: View {
             }
 
             if let ultimate = character.ultimate {
-                Text("必殺技: \(ultimate.name)(\(ultimate.kind.label)・\(ultimate.requiredLoops)周)")
+                Text("必殺技: \(ultimate.name)(\(ultimate.kind.label)・威力\(ultimate.power)%・\(ultimate.requiredLoops)周)")
                     .font(.caption)
                     .foregroundStyle(Palette.danger)
-            } else {
+            } else if character.job().id == "slot_machine" {
                 Text("必殺技なし(スロット一巡ごとにランダム効果)")
+                    .font(.caption)
+                    .foregroundStyle(Palette.textSecondary)
+            } else {
+                Text("必殺技なし(Lv25の進化で習得)")
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
             }
@@ -197,6 +214,39 @@ struct CharacterDetailView: View {
                 Button("やめる", role: .cancel) { editingSlot = nil }
             }
         }
+    }
+
+    // MARK: - パッシブ(Lv30/60/80で習得)
+
+    private func passivesSection(_ character: PlayerCharacter) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("パッシブ(Lv30/60/80で習得)")
+                .font(.headline)
+                .foregroundStyle(Palette.accent)
+            if character.passives.isEmpty {
+                Text("なし")
+                    .font(.caption)
+                    .foregroundStyle(Palette.textSecondary)
+            } else {
+                ForEach(Array(character.passives.enumerated()), id: \.offset) { _, passive in
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 5) {
+                            Text("\(passive.kind.label) +\(passive.value)%")
+                                .font(.caption)
+                                .foregroundStyle(Palette.textPrimary)
+                            if let tier = passive.tier {
+                                TierBadge(tier: tier)
+                            }
+                        }
+                        Text(passive.kind.effectDescription)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Palette.textSecondary)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .panelStyle()
     }
 
     // MARK: - 装備(横4グリッド。タップで装備、長押しで詳細)

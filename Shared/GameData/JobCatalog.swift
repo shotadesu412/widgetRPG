@@ -161,11 +161,16 @@ enum JobCatalog {
         }
     }
 
-    static func starterUltimate(for job: Job) -> UltimateSkill? {
-        // スロットマシンは必殺技を持たない
+    /// 進化で習得する必殺技(stage 1=第一必殺技、stage 2=第二必殺技)。
+    /// スロットマシンは必殺技を持たない
+    static func ultimate(for job: Job, stage: Int) -> UltimateSkill? {
         if job.id == "slot_machine" { return nil }
-        return UltimateSkill(name: "\(job.stageNames.last ?? "")の極意",
-                             kind: job.element == .water ? .heal : .damageAll,
-                             power: 250, requiredLoops: 3)
+        let kind: UltimateKind = job.element == .water ? .heal : .damageAll
+        if stage <= 1 {
+            return UltimateSkill(name: "\(job.name(atStage: 1))の極意",
+                                 kind: kind, power: 230, requiredLoops: 3)
+        }
+        return UltimateSkill(name: "\(job.name(atStage: 2))の奥義",
+                             kind: kind, power: 320, requiredLoops: 3)
     }
 }

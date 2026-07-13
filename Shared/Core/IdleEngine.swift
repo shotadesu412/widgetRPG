@@ -171,6 +171,9 @@ enum IdleEngine {
             while data.characters[index].exp >= data.characters[index].expToNext {
                 data.characters[index].exp -= data.characters[index].expToNext
                 data.characters[index].level += 1
+                // 習得テーブル(Lv10/70スキル、Lv30/60/80パッシブ)
+                CharacterProgression.grantLevelRewards(
+                    &data.characters[index], reachedLevel: data.characters[index].level)
             }
         }
         // オトモにも分配(モンスターテイマー編成でアップ)

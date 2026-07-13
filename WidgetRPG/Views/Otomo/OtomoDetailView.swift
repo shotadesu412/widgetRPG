@@ -39,6 +39,10 @@ struct OtomoDetailView: View {
                         .font(.caption2)
                         .foregroundStyle(Palette.textSecondary)
 
+                    Text("ステータス基準: 標準メインキャラの\(Int((otomo.statPercentOfMainCharacter * 100).rounded()))%")
+                        .font(.caption2)
+                        .foregroundStyle(Palette.textSecondary)
+
                     if !species.canEvolve {
                         Text("この種は進化しない")
                             .font(.caption2)
@@ -62,6 +66,11 @@ struct OtomoDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .panelStyle()
+
+                // 合成(同一種族・同一星を2体消費してレア度+1)
+                if otomo.rarity < .star3 && species.canEvolve {
+                    fusionSection(otomo)
+                }
 
                 // ステータス(個体値込み)
                 VStack(alignment: .leading, spacing: 6) {
@@ -145,6 +154,42 @@ struct OtomoDetailView: View {
         .background(Palette.background)
         .navigationTitle(otomo.displayName)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 合成: 同一種族・同一星のオトモを2体消費してレア度を1上げる。
+    /// スキルやパッシブは増えず、ステータス基準(メインキャラ比%)だけが上がる
+    private func fusionSection(_ otomo: Otomo) -> some View {
+        let materials = game.data.otomos.filter {
+            $0.id != otomo.id && $0.speciesID == otomo.speciesID && $0.rarity == otomo.rarity
+        }
+        let ready = materials.count >= 2
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("合成")
+                .font(.headline)
+                .foregroundStyle(Palette.accent)
+            Text("同じ種族・同じ星のオトモを2体消費してレア度を1上げる(スキルは変化しない)")
+                .font(.caption2)
+                .foregroundStyle(Palette.textSecondary)
+            HStack {
+                Text("素材にできる同族: \(materials.count)体")
+                    .font(.caption)
+                    .foregroundStyle(ready ? Palette.textPrimary : Palette.textSecondary)
+                Spacer()
+                Button {
+                    game.fuseOtomo(otomo)
+                } label: {
+                    Text("\(otomo.rarity.stars) → \(Rarity(rawValue: otomo.rarity.rawValue + 1)?.stars ?? "")に合成")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(ready ? Palette.accent : Palette.panelBorder))
+                        .foregroundStyle(ready ? Palette.background : Palette.textSecondary)
+                }
+                .disabled(!ready)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .panelStyle()
     }
 
     private func statRow(_ label: String, _ value: Int, iv: Int) -> some View {

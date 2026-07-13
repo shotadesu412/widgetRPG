@@ -77,13 +77,12 @@ struct SaveData: Codable {
         data.coins = 500
         data.lastTick = now
 
-        // 初期キャラ: けんし
+        // 初期キャラ: けんし(必殺技は進化で習得するため初期はなし)
         let job = JobCatalog.job(id: "swordsman")
         var hero = PlayerCharacter(jobID: job.id)
         hero.learnedSkills = JobCatalog.starterSkills(for: job)
         hero.placedSkills = Array(repeating: nil, count: job.slotCount)
         hero.placedSkills[0] = hero.learnedSkills.first
-        hero.ultimate = JobCatalog.starterUltimate(for: job)
 
         // 初期武器は剣種で生成する(スキルも剣のものになる)
         var weapon = ItemFactory.randomWeapon(rarity: .star1, type: .sword)

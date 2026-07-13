@@ -34,9 +34,11 @@ extension BattleEngine {
             if let weapon = data.weapon(id: chara.weaponID) {
                 unit.weaponInfo = (icon: weapon.type.symbolName, name: weapon.name)
             }
+            // キャラ自身のパッシブ(Lv30/60/80)+防具の解放済みパッシブ
+            unit.extraPassiveLabels = chara.passives.map { "\($0.kind.label) +\($0.value)%" }
             if let armor = data.armor(id: chara.armorID) {
                 unit.armorInfo = (icon: "shield.fill", name: armor.name)
-                unit.extraPassiveLabels = armor.activePassives.map { "\($0.kind.label) +\($0.value)%" }
+                unit.extraPassiveLabels += armor.activePassives.map { "\($0.kind.label) +\($0.value)%(防具)" }
             }
             engine.allies.append(unit)
         }

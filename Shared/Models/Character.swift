@@ -45,11 +45,14 @@ struct PlayerCharacter: Identifiable, Codable, Hashable {
     var stage = 0
     var level = 1
     var exp = 0
-    /// 習得済みスキル(進化・レベルアップで習得)
+    /// 習得済みスキル(Lv10/70で自動習得)
     var learnedSkills: [Skill] = []
     /// スロットへの配置(要素数 = スロット数、nil = 空きスロット = 通常攻撃)
     /// 武器スキルが付与された位置は武器側が優先される
     var placedSkills: [Skill?] = []
+    /// キャラ自身のパッシブ(Lv30/60/80で自動習得)
+    var passives: [Passive] = []
+    /// 必殺技(進化で習得: 第一進化=第一必殺技、第二進化=第二必殺技)
     var ultimate: UltimateSkill?
     var weaponID: UUID?
     /// 防具は1個のみ装備できる
@@ -73,7 +76,10 @@ struct PlayerCharacter: Identifiable, Codable, Hashable {
         return leveled.scaled(by: 1.0 + Double(stage) * 0.25)
     }
 
+    /// 進化条件: Lv25で第一進化、Lv45で第二進化(+属性石は進化実行時に消費)
     var canEvolve: Bool {
-        stage < job().maxStage && level >= (stage + 1) * 10
+        guard stage < job().maxStage,
+              let required = CharacterProgression.requiredEvolutionLevel(forStage: stage) else { return false }
+        return level >= required
     }
 }

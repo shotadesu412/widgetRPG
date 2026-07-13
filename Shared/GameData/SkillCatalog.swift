@@ -221,10 +221,30 @@ enum SkillCatalog {
         (otomoCategorySkills[species.category] ?? []) + (otomoSpeciesSkills[species.id] ?? [])
     }
 
-    // MARK: ジョブ固有(メインキャラ)
+    // MARK: ジョブ(メインキャラ)のレベル習得プール
 
-    /// ジョブごとに出るスキルの管理(進化・レベルアップ習得の抽選用。今後拡充)
+    /// ジョブごとに出るスキルの管理(Lv10/70の習得抽選用)。
+    /// 未定義のジョブは jobDefaultSkills から抽選される
     static let jobSkills: [String: [SkillEntry]] = [:]
+
+    /// ジョブ共通のスキルプール(Lv10/70)
+    static let jobDefaultSkills: [SkillEntry] = [
+        SkillEntry("job_c1", .common, "薙ぎの一撃", .attack, 130),
+        SkillEntry("job_c2", .common, "気合いため", .buff, 100),
+        SkillEntry("job_c3", .common, "応急手当", .heal, 80),
+        SkillEntry("job_u1", .uncommon, "闘気斬", .specialAttack, 160),
+        SkillEntry("job_u2", .uncommon, "威圧", .debuff, 120),
+        SkillEntry("job_u3", .uncommon, "鉄壁", .barrier, 100),
+        SkillEntry("job_r1", .rare, "極撃", .specialAttack, 210),
+    ]
+
+    /// ジョブごとに出るパッシブの管理(Lv30/60/80の習得抽選用)。
+    /// 未定義のジョブは characterPassives から抽選される
+    static let jobPassives: [String: [PassiveEntry]] = [:]
+
+    /// キャラ共通のパッシブプール(Lv30/60/80)
+    static let characterPassives: [PassiveEntry] =
+        passives(["p_stat", "p_empty", "p_odd", "p_even", "p_elem", "p_lowhp", "p_double"])
 
     // MARK: - 抽選
 
