@@ -38,6 +38,7 @@ struct PlayStats {
     var fusions = 0
     var scouted = 0
     var bossWaitHours: [Double] = []
+    var shrineRuns = 0
 }
 
 func day() -> Double { now.timeIntervalSince1970 / 86400 }
@@ -210,6 +211,22 @@ func nextMainTarget() -> Dungeon? {
     DungeonCatalog.unlocked(mainProgress: data.mainProgress).first { $0.kind == .main }
 }
 
+/// 潜入先の選択: 進化が石不足で止まっているなら自属性の祠、そうでなければメイン
+func nextTarget() -> Dungeon? {
+    let chara = data.characters[mainCharIndex()]
+    if chara.canEvolve {
+        let cost = CharacterProgression.evolutionStoneCost(forStage: chara.stage)
+        let element = chara.job().element
+        if data.stoneCount(element) < cost,
+           let shrine = DungeonCatalog.unlocked(mainProgress: data.mainProgress)
+               .first(where: { $0.kind == .stone && $0.element == element }) {
+            stats.shrineRuns += 1
+            return shrine
+        }
+    }
+    return nextMainTarget()
+}
+
 func manageScout() {
     guard !data.guild.scoutedToday, let visitor = data.guild.visitors.max(by: {
         (GachaCore.tier(ofJobID: $0.jobID)?.priority ?? 9) > (GachaCore.tier(ofJobID: $1.jobID)?.priority ?? 9)
@@ -268,14 +285,14 @@ if casual {
                         note("★系統クリア: \(dungeon.name) Lv\(data.characters[mainCharIndex()].level)")
                     }
                 }
-                if let target = nextMainTarget() {
+                if let target = nextTarget() {
                     data.activeRun = DungeonRun(dungeonID: target.id, now: now)
                 } else {
                     note("メイン全クリア!")
                     break
                 }
             }
-        } else if let target = nextMainTarget() {
+        } else if let target = nextTarget() {
             data.activeRun = DungeonRun(dungeonID: target.id, now: now)
         } else {
             note("メイン全クリア!")
@@ -284,7 +301,7 @@ if casual {
     }
 } else {
     outer: while day() < maxDays {
-        guard let target = nextMainTarget() else {
+        guard let target = nextTarget() else {
             note("メイン全クリア!")
             break
         }
@@ -351,7 +368,7 @@ if !stats.bossWaitHours.isEmpty {
     let avg = stats.bossWaitHours.reduce(0,+) / Double(stats.bossWaitHours.count)
     print("ボス発見→挑戦の平均待ち: \(String(format: "%.1f", avg))時間(自動探索は発見後5時間まで)")
 }
-print("スカウト成功: \(stats.scouted)人")
+print("スカウト成功: \(stats.scouted)人 / 祠に潜った回数: \(stats.shrineRuns)")
 print("オトモ: \(data.otomos.count)体 合成\(stats.fusions)回 パーティ=\(data.partyOtomos.map { "\($0.displayName)\($0.rarity.stars)Lv\($0.level)" }.joined(separator: ","))")
 let gradeCount = Dictionary(grouping: data.eggs, by: \.grade).mapValues(\.count)
 print("卵在庫内訳: \(gradeCount.map { "\($0.key.label)×\($0.value)" }.sorted().joined(separator: " "))")

@@ -44,8 +44,24 @@ enum DungeonCatalog {
         return pool[map % pool.count]
     }
 
+    /// 属性石の祠: 5属性それぞれの石がドロップする。
+    /// 第一進化(Lv25)の手前でクリアできる難易度(推奨Lv20)
+    static let stoneShrines: [Dungeon] = {
+        let bosses: [Element: String] = [
+            .fire: "ogre", .water: "golem", .electric: "angel",
+            .dark: "demon", .wind: "wyvern",
+        ]
+        return Element.allCases.map { element in
+            Dungeon(id: "shrine_\(element.rawValue)",
+                    name: "\(element.label)の祠", kind: .stone, arc: nil, mapIndex: nil,
+                    recommendedLevel: 20, bossFindChancePerMinute: 0.08, guaranteedFindMinutes: 30,
+                    bossEnemyID: bosses[element] ?? "golem",
+                    mobEnemyIDs: [], element: element)
+        }
+    }()
+
     /// サブダンジョン(卵・装備・素材・イベント・カオス)
-    static let sideDungeons: [Dungeon] = [
+    static let sideDungeons: [Dungeon] = stoneShrines + [
         Dungeon(id: "egg_random", name: "始まりの巣", kind: .egg, arc: nil, mapIndex: nil,
                 recommendedLevel: 2, bossFindChancePerMinute: 0.12, guaranteedFindMinutes: 10,
                 bossEnemyID: "goblin", mobEnemyIDs: ["goblin"]),
@@ -84,6 +100,9 @@ enum DungeonCatalog {
                 guard let arc = dungeon.arc, let map = dungeon.mapIndex else { return false }
                 let cleared = mainProgress[arc.rawValue] ?? 0
                 return map == cleared + 1 // 次のマップだけ挑戦可
+            case .stone:
+                // 進化(Lv25)を意識し始める頃に解禁
+                return totalCleared >= 5
             case .egg:
                 return dungeon.id == "egg_random" || totalCleared >= 10
             case .equipment:

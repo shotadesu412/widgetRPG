@@ -2,6 +2,7 @@ import Foundation
 
 enum DungeonKind: String, Codable, CaseIterable, Identifiable {
     case main      // メイン: 各ボスごとに15マップ、順に攻略
+    case stone     // 属性石: 進化用の石がドロップする祠
     case egg       // 卵: 進行度で高難易度・強キャラの卵ダンジョン解禁
     case equipment // 装備: 進行度で武器種・属性ごとのダンジョン解禁
     case material  // 素材: 武器や拠点の強化素材
@@ -13,6 +14,7 @@ enum DungeonKind: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .main: "メイン"
+        case .stone: "属性石"
         case .egg: "卵"
         case .equipment: "装備"
         case .material: "素材"
@@ -24,6 +26,7 @@ enum DungeonKind: String, Codable, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .main: "crown.fill"
+        case .stone: "diamond.fill"
         case .egg: "oval.portrait.fill"
         case .equipment: "shield.lefthalf.filled"
         case .material: "hammer.fill"
@@ -84,6 +87,8 @@ struct Dungeon: Identifiable, Codable, Hashable {
     let bossEnemyID: String
     /// 道中に出る雑魚
     let mobEnemyIDs: [String]
+    /// 属性石ダンジョンのドロップ属性(祠のみ)
+    var element: Element? = nil
 }
 
 struct LootLogEntry: Identifiable, Codable, Hashable {

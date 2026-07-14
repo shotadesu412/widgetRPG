@@ -31,6 +31,8 @@ enum EnemyCatalog {
               stats: BaseStats(hp: 750, attack: 75, defense: 0, speed: 50, magic: 10), isBoss: false, spriteKey: "ogre"),
         Enemy(id: "giant", name: "ジャイアント", element: .water,
               stats: BaseStats(hp: 1100, attack: 85, defense: 0, speed: 28, magic: 10), isBoss: false, spriteKey: "giant"),
+        Enemy(id: "wyvern", name: "ワイバーン", element: .wind,
+              stats: BaseStats(hp: 800, attack: 70, defense: 0, speed: 75, magic: 20), isBoss: false, spriteKey: "dragon"),
         // --- ボス ---
         Enemy(id: "dragon_enemy", name: "ドラゴン", element: .fire,
               stats: BaseStats(hp: 2600, attack: 120, defense: 0, speed: 70, magic: 40), isBoss: true, spriteKey: "dragon"),

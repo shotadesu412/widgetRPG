@@ -76,8 +76,28 @@ enum IdleEngine {
             run.collectedExp += run.bossFound ? Int(Double(baseExp) * 0.3) : baseExp
 
             // アイテムは10分ごとに1回獲得
-            // 獲得率: 素材40% / コイン43% / 装備10% / 卵7%
-            if (baseMinutes + minute) % 10 == 0 {
+            if (baseMinutes + minute) % 10 == 0, dungeon.kind == .stone, let element = dungeon.element {
+                // 属性石の祠: 石50% / コイン25% / 素材15% / 装備10%(卵は出ない)
+                let roll = Double.random(in: 0..<100)
+                if roll < 50 {
+                    let amount = Int.random(in: 1...2)
+                    data.elementStones[element.rawValue, default: 0] += amount
+                    appendLog(&run, date: tickDate, message: "\(element.label)の石を\(amount)個見つけた!")
+                } else if roll < 75 {
+                    let amount = Int(Double(Int.random(in: 10...20) + dungeon.recommendedLevel * 3) * coinScale)
+                    run.collectedCoins += amount
+                    appendLog(&run, date: tickDate, message: "コインを\(amount)枚拾った")
+                } else if roll < 90 {
+                    let amount = Int(Double(Int.random(in: 1...3) + dungeon.recommendedLevel / 4) * materialScale)
+                    run.collectedMaterials += amount
+                    appendLog(&run, date: tickDate, message: "素材を\(amount)個拾った")
+                } else {
+                    let weapon = ItemFactory.randomWeapon()
+                    data.weapons.append(weapon)
+                    appendLog(&run, date: tickDate, message: "\(weapon.name)\(weapon.rarity.stars)を発見した!")
+                }
+            } else if (baseMinutes + minute) % 10 == 0 {
+                // 通常の獲得率: 素材40% / コイン43% / 装備10% / 卵7%
                 let roll = Double.random(in: 0..<100)
                 if roll < 40 {
                     // 素材(潜っているダンジョンが後半ほど量が増える)
