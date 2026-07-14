@@ -60,9 +60,9 @@ struct PlayerCharacter: Identifiable, Codable, Hashable {
     /// 防具は1個のみ装備できる
     var armorID: UUID?
 
-    /// 次のレベルまでの必要経験値。
-    /// メイン攻略ペース(最終ボス推奨Lv: 30/45/65/75)に合わせた上振れカーブ
-    var expToNext: Int { Int(pow(Double(level), 1.5) * 20) }
+    /// 次のレベルまでの必要経験値(ポケモン式: レベルごとに2乗で増加、累計は3乗に比例)。
+    /// 高レベルほど重くなり、放置時間だけでは推奨レベルを大きく超えられない
+    var expToNext: Int { 5 * level * level }
 
     func job() -> Job { JobCatalog.job(id: jobID) }
 
