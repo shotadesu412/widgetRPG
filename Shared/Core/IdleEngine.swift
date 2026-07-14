@@ -6,14 +6,40 @@ enum IdleEngine {
     static func process(_ data: inout SaveData, now: Date = Date()) {
         refreshShopIfNeeded(&data, now: now)
         refreshGuildIfNeeded(&data, now: now)
+        updateGuerrilla(&data, now: now)
         processDungeonRun(&data, now: now)
         data.lastTick = now
+    }
+
+    // MARK: - ゲリラクエスト(ランダムな時間に出現する即時の高難易度ボス戦)
+
+    private static func updateGuerrilla(_ data: inout SaveData, now: Date) {
+        // 期限切れは消す
+        if let quest = data.guerrilla, now >= quest.expiresAt {
+            data.guerrilla = nil
+        }
+        guard data.guerrilla == nil else { return }
+
+        // 出現判定: 平均6〜7時間に1回(経過分に応じた確率)。開発モードは即出現
+        let minutes = max(0, min(720, Int(now.timeIntervalSince(data.lastTick) / 60)))
+        let spawnChance = 1 - pow(0.9975, Double(minutes))
+        guard DevFlags.zeroWait || Double.random(in: 0..<1) < spawnChance else { return }
+
+        let pool = ["dragon_enemy", "cthulhu_boss", "nyarlathotep_boss", "azathoth_boss", "necronomicon_boss"]
+        // 高難易度: 現在のメイン進行の推奨レベル+5
+        let recommended = DungeonCatalog.unlocked(mainProgress: data.mainProgress)
+            .first { $0.kind == .main }?.recommendedLevel ?? 80
+        data.guerrilla = GuerrillaQuest(
+            bossEnemyID: pool.randomElement()!,
+            level: recommended + 5,
+            expiresAt: now.addingTimeInterval(2 * 3600) // 2時間限定
+        )
     }
 
     // MARK: - ショップ(ランダムな時間に更新、6種類ランダムに並ぶ)
 
     private static func refreshShopIfNeeded(_ data: inout SaveData, now: Date) {
-        guard now >= data.shop.nextRefresh else { return }
+        guard now >= data.shop.nextRefresh || DevFlags.zeroWait else { return }
         data.shop.items = ItemFactory.randomShopItems(now: now)
         data.shop.nextRefresh = now.addingTimeInterval(TimeInterval(Int.random(in: 1800...7200)))
     }
@@ -33,7 +59,8 @@ enum IdleEngine {
 
     private static func refreshGuildIfNeeded(_ data: inout SaveData, now: Date) {
         let today = Calendar.current.startOfDay(for: now)
-        if data.guild.lastVisitDay != today {
+        // 開発モード: スカウト済みなら即座に新しい来訪者が補充される(スカウトし放題)
+        if data.guild.lastVisitDay != today || (DevFlags.zeroWait && data.guild.scoutedToday) {
             data.guild.visitors = makeVisitors(ownedJobIDs: Set(data.characters.map(\.jobID)))
             data.guild.lastVisitDay = today
             data.guild.scoutedToday = false
@@ -45,6 +72,13 @@ enum IdleEngine {
     private static func processDungeonRun(_ data: inout SaveData, now: Date) {
         guard var run = data.activeRun else { return }
         let dungeon = run.dungeon()
+
+        // 開発モード: ボスを即発見
+        if DevFlags.zeroWait, !run.bossFound {
+            run.bossFound = true
+            run.bossFoundAt = now
+            data.activeRun = run
+        }
 
         let elapsedMinutes = min(
             AppConstants.maxOfflineMinutes,

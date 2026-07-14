@@ -46,6 +46,44 @@ final class GameViewModel: ObservableObject {
         save()
     }
 
+    // MARK: - ゲリラクエスト(即ボス戦)
+
+    /// ゲリラ討伐の精算。勝利で報酬、敗北なら期限内は再挑戦できる
+    func settleGuerrilla(victory: Bool) {
+        guard let quest = data.guerrilla else { return }
+        if victory {
+            data.coins += quest.rewardCoins
+            data.materials += quest.rewardMaterials
+            let grade: EggGrade = Double.random(in: 0..<1) < GuerrillaQuest.legendaryEggChance ? .legendary : .uncommon
+            data.eggs.append(ItemFactory.makeEgg(grade: grade))
+            data.guerrilla = nil
+        }
+        save()
+    }
+
+    // MARK: - 開発モード
+
+    /// 時間スキップ: 各タイムスタンプを過去にずらして、指定時間ぶんの放置を即時反映する
+    func debugSkip(hours: Double) {
+        let dt = hours * 3600
+        if var run = data.activeRun {
+            run.enteredAt = run.enteredAt.addingTimeInterval(-dt)
+            run.lastProcessed = run.lastProcessed.addingTimeInterval(-dt)
+            if let found = run.bossFoundAt { run.bossFoundAt = found.addingTimeInterval(-dt) }
+            data.activeRun = run
+        }
+        for index in data.eggs.indices {
+            if let started = data.eggs[index].incubationStartedAt {
+                data.eggs[index].incubationStartedAt = started.addingTimeInterval(-dt)
+            }
+        }
+        data.shop.nextRefresh = data.shop.nextRefresh.addingTimeInterval(-dt)
+        if let day = data.guild.lastVisitDay { data.guild.lastVisitDay = day.addingTimeInterval(-dt) }
+        if let quest = data.guerrilla { data.guerrilla?.expiresAt = quest.expiresAt.addingTimeInterval(-dt) }
+        data.lastTick = data.lastTick.addingTimeInterval(-dt)
+        processIdle()
+    }
+
     // MARK: - ショップ
 
     func buy(_ item: ShopItem) {
@@ -143,7 +181,8 @@ final class GameViewModel: ObservableObject {
         guard data.incubatingEggID == nil,
               let index = data.eggs.firstIndex(where: { $0.id == egg.id }) else { return }
         data.eggs[index].incubationStartedAt = Date()
-        data.eggs[index].hatchSeconds = egg.grade.hatchSeconds
+        // 開発モード: 孵化は即完了
+        data.eggs[index].hatchSeconds = DevFlags.zeroWait ? 0 : egg.grade.hatchSeconds
         data.incubatingEggID = egg.id
         save()
     }

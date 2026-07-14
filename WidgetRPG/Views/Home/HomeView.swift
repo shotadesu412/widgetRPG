@@ -4,15 +4,21 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var game: GameViewModel
     @State private var showInventory = false
+    @State private var showGuerrilla = false
     @State private var showDevBattle = false
     @State private var showDevGacha = false
     @State private var showDevEgg = false
+    @State private var showDevSettings = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     resourceHeader
+                    // ゲリラクエスト(出現中のみ表示。タップで即ボス戦)
+                    if let quest = game.data.guerrilla, !quest.isExpired {
+                        GuerrillaSection(quest: quest) { showGuerrilla = true }
+                    }
                     ShopSection()
                     GuildSection()
                     inventorySummary
@@ -40,6 +46,11 @@ struct HomeView: View {
                         } label: {
                             Label("卵検証", systemImage: "oval.portrait.fill")
                         }
+                        Button {
+                            showDevSettings = true
+                        } label: {
+                            Label("デバッグ設定(時間ゼロ等)", systemImage: "clock.badge.xmark")
+                        }
                     } label: {
                         Image(systemName: "wrench.and.screwdriver.fill")
                     }
@@ -64,6 +75,15 @@ struct HomeView: View {
             }
             .fullScreenCover(isPresented: $showDevEgg) {
                 DevEggView()
+            }
+            .sheet(isPresented: $showDevSettings) {
+                DevSettingsView()
+            }
+            .fullScreenCover(isPresented: $showGuerrilla) {
+                if let quest = game.data.guerrilla {
+                    GuerrillaBattleView(quest: quest)
+                        .preferredColorScheme(.dark)
+                }
             }
         }
     }
@@ -103,6 +123,52 @@ struct HomeView: View {
                     .foregroundStyle(Palette.textSecondary)
             }
             .panelStyle()
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// ゲリラクエスト: ランダムに出現する期間限定の即ボス戦(高難易度)
+struct GuerrillaSection: View {
+    let quest: GuerrillaQuest
+    let onChallenge: () -> Void
+
+    var body: some View {
+        Button(action: onChallenge) {
+            HStack(spacing: 12) {
+                CharacterSpriteView(spriteKey: quest.boss().spriteKey, pixelSize: 3, flipped: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                        Text("ゲリラ討伐!")
+                            .font(.headline)
+                    }
+                    .foregroundStyle(Palette.danger)
+                    Text("\(quest.boss().name) Lv\(quest.level)(高難易度)")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Palette.textPrimary)
+                    HStack(spacing: 4) {
+                        Text("消滅まで")
+                        Text(quest.expiresAt, style: .relative)
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(Palette.textSecondary)
+                }
+                Spacer()
+                Text("挑戦")
+                    .font(.subheadline.bold())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Palette.danger))
+                    .foregroundStyle(.white)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Palette.panel)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Palette.danger, lineWidth: 1.5))
+            )
         }
         .buttonStyle(.plain)
     }

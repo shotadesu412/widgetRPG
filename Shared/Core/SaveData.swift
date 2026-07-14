@@ -21,6 +21,8 @@ struct SaveData: Codable {
     /// メインダンジョン進行度: 系統rawValue → 攻略済みマップ数
     var mainProgress: [String: Int] = [:]
     var activeRun: DungeonRun?
+    /// 出現中のゲリラクエスト(ホーム画面から即ボス戦)
+    var guerrilla: GuerrillaQuest?
     var shop = ShopState()
     var guild = GuildState()
     var lastTick = Date()
