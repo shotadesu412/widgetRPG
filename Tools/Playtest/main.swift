@@ -36,6 +36,8 @@ struct PlayStats {
     var battleSeconds: [Double] = []
     var levelAtClear: [String: Int] = [:]
     var fusions = 0
+    var scouted = 0
+    var bossWaitHours: [Double] = []
 }
 
 func day() -> Double { now.timeIntervalSince1970 / 86400 }
@@ -190,49 +192,119 @@ func fightBoss(dungeon: Dungeon) -> Bool {
 
 // MARK: - メインループ
 
-var arcs = MainArc.allCases
-note("プレイ開始: \(data.characters[0].displayName) / コイン\(data.coins)")
+let arcs = MainArc.allCases
+/// CASUAL=1: 1日4回(8/12/18/22時)だけアプリを開くプレイヤーを模擬。
+/// 未設定: 発見した瞬間に戦う最適プレイ(理論上の最速)
+let casual = ProcessInfo.processInfo.environment["CASUAL"] == "1"
 
-outer: while day() < maxDays {
-    // 攻略対象 = 次のメインマップ
-    let unlocked = DungeonCatalog.unlocked(mainProgress: data.mainProgress)
-    guard let target = unlocked.first(where: { $0.kind == .main }) else {
-        note("メイン全クリア!")
-        break
+func nextMainTarget() -> Dungeon? {
+    DungeonCatalog.unlocked(mainProgress: data.mainProgress).first { $0.kind == .main }
+}
+
+func manageScout() {
+    guard !data.guild.scoutedToday, let visitor = data.guild.visitors.max(by: {
+        (GachaCore.tier(ofJobID: $0.jobID)?.priority ?? 9) > (GachaCore.tier(ofJobID: $1.jobID)?.priority ?? 9)
+    }) else { return }
+    data.guild.scoutedToday = true
+    let chance = data.guild.scoutChance(forJobID: visitor.jobID)
+    if Double.random(in: 0..<1) < chance {
+        data.guild.scoutFails.removeValue(forKey: visitor.jobID)
+        let job = JobCatalog.job(id: visitor.jobID)
+        var chara = PlayerCharacter(jobID: job.id)
+        chara.placedSkills = Array(repeating: nil, count: job.slotCount)
+        if job.category == .rare { chara.ultimate = JobCatalog.ultimate(for: job, stage: 1) }
+        data.characters.append(chara)
+        stats.scouted += 1
+        if job.category == .rare { note("レアキャラ加入! \(job.name(atStage: 0))") }
+    } else {
+        data.guild.scoutFails[visitor.jobID, default: 0] += 1
     }
+}
 
-    // 潜入
-    data.activeRun = DungeonRun(dungeonID: target.id, now: now)
+note("プレイ開始: \(data.characters[0].displayName) / モード=\(casual ? "カジュアル(1日4回)" : "最適プレイ")")
 
-    // ボス発見まで時間を送る(その間に日課)
-    var found = false
-    while !found && day() < maxDays {
-        now = now.addingTimeInterval(TimeInterval(tickMinutes * 60))
+if casual {
+    let checkHours: [Double] = [8, 12, 18, 22]
+    while day() < maxDays {
+        // 次のチェック時刻まで時間を送る
+        let dayStart = floor(day())
+        let hourNow = (day() - dayStart) * 24
+        if let nextHour = checkHours.first(where: { $0 > hourNow + 0.01 }) {
+            now = Date(timeIntervalSince1970: (dayStart * 24 + nextHour) * 3600)
+        } else {
+            now = Date(timeIntervalSince1970: ((dayStart + 1) * 24 + checkHours[0]) * 3600)
+        }
         IdleEngine.process(&data, now: now)
+
+        // チェック時の日課
         manageEggs()
         manageFusion()
         manageShop()
+        manageScout()
         manageEvolution()
-        if data.activeRun?.bossFound == true { found = true }
-    }
-    guard found else { break }
+        manageEquipment()
 
-    manageEquipment()
-
-    // ボス戦(負けたら撤退→再潜入で再挑戦)
-    let win = fightBoss(dungeon: target)
-    IdleEngine.settleRun(&data, bossDefeated: win)
-    if win {
-        let d = day()
-        stats.mapClearDay[target.id] = d
-        stats.levelAtClear[target.id] = data.characters[mainCharIndex()].level
-        if target.mapIndex == MainArc.mapsPerArc {
-            note("★系統クリア: \(target.name) Lv\(data.characters[mainCharIndex()].level)")
-        } else if target.mapIndex! % 5 == 0 {
-            note("攻略: \(target.name) Lv\(data.characters[mainCharIndex()].level) コイン\(data.coins) 素材\(data.materials)")
+        if let run = data.activeRun {
+            if run.bossFound {
+                if let foundAt = run.bossFoundAt {
+                    stats.bossWaitHours.append(now.timeIntervalSince(foundAt) / 3600)
+                }
+                let dungeon = run.dungeon()
+                let win = fightBoss(dungeon: dungeon)
+                IdleEngine.settleRun(&data, bossDefeated: win)
+                if win {
+                    stats.mapClearDay[dungeon.id] = day()
+                    stats.levelAtClear[dungeon.id] = data.characters[mainCharIndex()].level
+                    if dungeon.mapIndex == MainArc.mapsPerArc {
+                        note("★系統クリア: \(dungeon.name) Lv\(data.characters[mainCharIndex()].level)")
+                    }
+                }
+                if let target = nextMainTarget() {
+                    data.activeRun = DungeonRun(dungeonID: target.id, now: now)
+                } else {
+                    note("メイン全クリア!")
+                    break
+                }
+            }
+        } else if let target = nextMainTarget() {
+            data.activeRun = DungeonRun(dungeonID: target.id, now: now)
+        } else {
+            note("メイン全クリア!")
+            break
         }
-    } else {
-        note("敗北: \(target.name)(Lv\(data.characters[mainCharIndex()].level))→ 再挑戦")
+    }
+} else {
+    outer: while day() < maxDays {
+        guard let target = nextMainTarget() else {
+            note("メイン全クリア!")
+            break
+        }
+        data.activeRun = DungeonRun(dungeonID: target.id, now: now)
+
+        var found = false
+        while !found && day() < maxDays {
+            now = now.addingTimeInterval(TimeInterval(tickMinutes * 60))
+            IdleEngine.process(&data, now: now)
+            manageEggs()
+            manageFusion()
+            manageShop()
+            manageScout()
+            manageEvolution()
+            if data.activeRun?.bossFound == true { found = true }
+        }
+        guard found else { break }
+
+        manageEquipment()
+
+        let win = fightBoss(dungeon: target)
+        IdleEngine.settleRun(&data, bossDefeated: win)
+        if win {
+            stats.mapClearDay[target.id] = day()
+            stats.levelAtClear[target.id] = data.characters[mainCharIndex()].level
+            if target.mapIndex == MainArc.mapsPerArc {
+                note("★系統クリア: \(target.name) Lv\(data.characters[mainCharIndex()].level)")
+            }
+        }
     }
 }
 
@@ -266,6 +338,11 @@ for arc in arcs {
 print("属性石: 不足で進化待ちになった時間 \(String(format: "%.1f", stats.stoneWaitHours))時間(ショップで石を見た回数\(stats.shopStonesSeen)/買えた\(stats.shopStonesBought))")
 print("卵: 入手\(stats.eggsObtained + stats.eggsHatched)個 孵化\(stats.eggsHatched)体 未処理の最大在庫\(stats.eggBacklogMax)個")
 print("経済: コイン残\(data.coins)(消費\(stats.coinsSpent)) 素材残\(data.materials)")
+if !stats.bossWaitHours.isEmpty {
+    let avg = stats.bossWaitHours.reduce(0,+) / Double(stats.bossWaitHours.count)
+    print("ボス発見→挑戦の平均待ち: \(String(format: "%.1f", avg))時間(自動探索は発見後5時間まで)")
+}
+print("スカウト成功: \(stats.scouted)人")
 print("オトモ: \(data.otomos.count)体 合成\(stats.fusions)回 パーティ=\(data.partyOtomos.map { "\($0.displayName)\($0.rarity.stars)Lv\($0.level)" }.joined(separator: ","))")
 let gradeCount = Dictionary(grouping: data.eggs, by: \.grade).mapValues(\.count)
 print("卵在庫内訳: \(gradeCount.map { "\($0.key.label)×\($0.value)" }.sorted().joined(separator: " "))")

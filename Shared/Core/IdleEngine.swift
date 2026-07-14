@@ -66,13 +66,20 @@ enum IdleEngine {
         for minute in 1...elapsedMinutes {
             let tickDate = run.lastProcessed.addingTimeInterval(TimeInterval(minute * 60))
 
+            // ボス発見後の自動探索は最大5時間まで。以降は収集が完全に止まる
+            // (プレイヤーがボス戦を放置したまま経験値を稼ぎ続けられないようにする)
+            if run.bossFound, let foundAt = run.bossFoundAt,
+               tickDate.timeIntervalSince(foundAt) > 5 * 3600 {
+                continue
+            }
+
             // 経験値は毎分たまる(推奨レベル依存)。
             // ボス発見後は放置されないよう本来の30%に減少
             let baseExp = Int.random(in: 5...10) + dungeon.recommendedLevel * 3
             run.collectedExp += run.bossFound ? Int(Double(baseExp) * 0.3) : baseExp
 
             // アイテムは10分ごとに1回獲得
-            // 獲得率: 素材40% / コイン40% / 装備10% / 卵10%
+            // 獲得率: 素材40% / コイン43% / 装備10% / 卵7%
             if (baseMinutes + minute) % 10 == 0 {
                 let roll = Double.random(in: 0..<100)
                 if roll < 40 {
@@ -80,12 +87,12 @@ enum IdleEngine {
                     let amount = Int(Double(Int.random(in: 2...4) + storyProgress / 3) * materialScale)
                     run.collectedMaterials += amount
                     appendLog(&run, date: tickDate, message: "素材を\(amount)個拾った")
-                } else if roll < 80 {
+                } else if roll < 83 {
                     // コイン(獲得量はメインストーリーの進行度依存)
                     let amount = Int(Double(Int.random(in: 30...60) + storyProgress * 8) * coinScale)
                     run.collectedCoins += amount
                     appendLog(&run, date: tickDate, message: "コインを\(amount)枚拾った")
-                } else if roll < 80 + 10 * equipScale {
+                } else if roll < 83 + 10 * equipScale {
                     // 装備(星1 80% / 星2 17% / 星3 3%)
                     if Bool.random() {
                         let weapon = ItemFactory.randomWeapon()
