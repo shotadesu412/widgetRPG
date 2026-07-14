@@ -54,6 +54,9 @@ struct SaveData: Codable {
 
     func stoneCount(_ element: Element) -> Int { elementStones[element.rawValue] ?? 0 }
 
+    /// 全属性の石の合計(特殊キャラの進化はどの石でも使える)
+    var totalStones: Int { elementStones.values.reduce(0, +) }
+
     /// 編成中の特殊支援キャラの職ID一覧(ダンジョン潜入時の特殊効果判定に使う)
     var partySupportJobIDs: Set<String> {
         Set(partyCharacters.filter { $0.job().category == .specialSupport }.map(\.jobID))
@@ -93,10 +96,10 @@ struct SaveData: Codable {
         data.weapons = [weapon]
         data.partyCharacterIDs = [hero.id]
 
-        // 初期の卵と少量の素材・属性石
+        // 初期の卵と少量の素材・属性石(第一進化には15個必要。ショップで買い集める)
         data.eggs = [Egg(grade: .normal, obtainedAt: now)]
         data.materials = 20
-        for element in Element.allCases { data.elementStones[element.rawValue] = 1 }
+        for element in Element.allCases { data.elementStones[element.rawValue] = 3 }
 
         // 開発用: DEV_RICH=1 で装備・素材を多めに持った状態で開始(UI確認用)
         if ProcessInfo.processInfo.environment["DEV_RICH"] == "1" {

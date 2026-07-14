@@ -34,6 +34,11 @@ struct Job: Identifiable, Codable, Hashable {
 
     var maxStage: Int { stageNames.count - 1 }
 
+    /// 進化に自属性の石が必要か。
+    /// 通常キャラ=自属性の石。特殊キャラ(スロットマシン等)は本来属性を
+    /// 持たない扱いで、どの属性の石でも進化に使える
+    var usesElementStone: Bool { category == .normal || category == .rare }
+
     func name(atStage stage: Int) -> String {
         stageNames[min(max(stage, 0), stageNames.count - 1)]
     }

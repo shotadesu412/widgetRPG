@@ -148,6 +148,9 @@ enum ItemFactory {
         (0..<ShopState.itemCount).map { _ in shopItem(tier: ShopTier.roll()) }
     }
 
+    /// ショップの価格は進化の石経済が基準:
+    /// 進化には自属性の石が第一15個+第二30個=計45個必要。
+    /// 石1個≒100コイン前後を軸に、まとめ売りほど割安にする
     private static func shopItem(tier: ShopTier) -> ShopItem {
         switch tier {
         case .basic:
@@ -155,8 +158,9 @@ enum ItemFactory {
             case 0:
                 let element = Element.allCases.randomElement()!
                 return ShopItem(tier: tier, kind: .elementStone,
-                                name: "\(element.label)の石", price: Int.random(in: 120...200),
-                                detail: "\(element.label)属性キャラの進化に使う", element: element)
+                                name: "\(element.label)の石", price: Int.random(in: 90...130),
+                                detail: "\(element.label)属性キャラの進化に使う(進化には15/30個必要)",
+                                element: element)
             case 1:
                 return ShopItem(tier: tier, kind: .material,
                                 name: "強化素材の束", price: Int.random(in: 80...150),
@@ -175,19 +179,20 @@ enum ItemFactory {
             case 0:
                 let element = Element.allCases.randomElement()!
                 return ShopItem(tier: tier, kind: .elementStone,
-                                name: "\(element.label)の石×3", price: Int.random(in: 300...450),
-                                detail: "\(element.label)属性キャラの進化に使う", element: element, amount: 3)
+                                name: "\(element.label)の石×5", price: Int.random(in: 400...550),
+                                detail: "\(element.label)属性キャラの進化に使う(まとめ売りで割安)",
+                                element: element, amount: 5)
             case 1:
                 return ShopItem(tier: tier, kind: .material,
                                 name: "強化素材の大束", price: Int.random(in: 200...320),
-                                detail: "装備の強化に使う素材×15", amount: 15)
+                                detail: "装備の強化に使う素材×20", amount: 20)
             default:
                 return ShopItem(tier: tier, kind: .egg,
                                 name: EggGrade.uncommon.label, price: Int.random(in: 700...1000),
                                 detail: "孵化に5時間。星2以上が出やすい", eggGrade: .uncommon)
             }
         case .lowChance:
-            switch Int.random(in: 0..<4) {
+            switch Int.random(in: 0..<5) {
             case 0:
                 return ShopItem(tier: tier, kind: .guildTicket,
                                 name: "ギルドチケット", price: Int.random(in: 400...600),
@@ -200,6 +205,11 @@ enum ItemFactory {
                 return ShopItem(tier: tier, kind: .weapon,
                                 name: "星3武器くじ", price: Int.random(in: 1000...1500),
                                 detail: "星3の武器がランダムで1つ", equipRarity: .star3)
+            case 3:
+                let element = Element.allCases.randomElement()!
+                return ShopItem(tier: tier, kind: .elementStone,
+                                name: "\(element.label)の石×15(進化セット)", price: Int.random(in: 1000...1400),
+                                detail: "第一進化1回ぶんの石をまとめて入手", element: element, amount: 15)
             default:
                 return ShopItem(tier: tier, kind: .egg,
                                 name: EggGrade.legendary.label, price: Int.random(in: 1800...2600),

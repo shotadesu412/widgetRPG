@@ -48,19 +48,23 @@ struct CharacterDetailView: View {
                     }
 
                     if character.canEvolve {
-                        // 進化にはキャラの属性に対応した属性石が必要
-                        let stones = game.data.stoneCount(job.element)
+                        // 進化コスト: 第一15個 / 第二30個。
+                        // 通常キャラは自属性の石、特殊キャラはどの石でも合計で支払える
+                        let cost = CharacterProgression.evolutionStoneCost(forStage: character.stage)
+                        let stones = job.usesElementStone ? game.data.stoneCount(job.element) : game.data.totalStones
+                        let stoneLabel = job.usesElementStone ? "\(job.element.label)の石" : "属性石(種類問わず)"
+                        let affordable = stones >= cost
                         Button {
                             game.evolve(character)
                         } label: {
-                            Text("進化する(\(job.element.label)の石×1 / 所持\(stones))")
+                            Text("進化する(\(stoneLabel)×\(cost) / 所持\(stones))")
                                 .font(.subheadline.bold())
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 8)
-                                .background(Capsule().fill(stones > 0 ? Palette.accent : Palette.panelBorder))
-                                .foregroundStyle(stones > 0 ? Palette.background : Palette.textSecondary)
+                                .background(Capsule().fill(affordable ? Palette.accent : Palette.panelBorder))
+                                .foregroundStyle(affordable ? Palette.background : Palette.textSecondary)
                         }
-                        .disabled(stones == 0)
+                        .disabled(!affordable)
                     } else if character.stage < job.maxStage,
                               let required = CharacterProgression.requiredEvolutionLevel(forStage: character.stage) {
                         Text("Lv\(required)で進化できる(必殺技を習得)")

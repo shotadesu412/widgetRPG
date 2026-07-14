@@ -54,17 +54,38 @@ enum CharacterProgression {
         }
     }
 
-    /// 進化する。属性石を1個消費し、必殺技を習得する
+    /// 進化に必要な属性石の数(第一進化15個 / 第二進化30個)
+    static func evolutionStoneCost(forStage stage: Int) -> Int {
+        stage == 0 ? 15 : 30
+    }
+
+    /// 進化する。属性石を消費し、必殺技を習得する
     /// (第一進化=第一必殺技、第二進化=第二必殺技に更新)。
+    /// 通常キャラは自属性の石、特殊キャラ(属性を持たない)はどの属性の石でも支払える
     @discardableResult
     static func evolve(_ data: inout SaveData, characterID: UUID) -> Bool {
         guard let index = data.characters.firstIndex(where: { $0.id == characterID }) else { return false }
         let chara = data.characters[index]
         guard chara.canEvolve else { return false }
-        let element = chara.job().element
-        guard data.stoneCount(element) > 0 else { return false }
+        let job = chara.job()
+        let cost = evolutionStoneCost(forStage: chara.stage)
 
-        data.elementStones[element.rawValue, default: 1] -= 1
+        if job.usesElementStone {
+            let element = job.element
+            guard data.stoneCount(element) >= cost else { return false }
+            data.elementStones[element.rawValue, default: 0] -= cost
+        } else {
+            // 属性を持たない特殊キャラ: 石の種類を問わず合計で消費(在庫の多い属性から)
+            guard data.totalStones >= cost else { return false }
+            var remaining = cost
+            for element in Element.allCases.sorted(by: { data.stoneCount($0) > data.stoneCount($1) }) {
+                let take = min(remaining, data.stoneCount(element))
+                data.elementStones[element.rawValue, default: 0] -= take
+                remaining -= take
+                if remaining == 0 { break }
+            }
+        }
+
         data.characters[index].stage += 1
         data.characters[index].ultimate = JobCatalog.ultimate(
             for: chara.job(), stage: data.characters[index].stage)

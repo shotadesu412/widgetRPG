@@ -57,9 +57,6 @@ enum IdleEngine {
         let materialScale = support.contains("miner") ? 1.6 : 1.0
         let equipScale = support.contains("explorer") ? 1.6 : 1.0
 
-        // メインストーリーの進行度(獲得量に影響)
-        let storyProgress = data.mainProgress.values.reduce(0, +)
-
         // 潜入からの通算分数(10分周期の判定に使う)
         let baseMinutes = Int(run.lastProcessed.timeIntervalSince(run.enteredAt) / 60)
 
@@ -83,13 +80,13 @@ enum IdleEngine {
             if (baseMinutes + minute) % 10 == 0 {
                 let roll = Double.random(in: 0..<100)
                 if roll < 40 {
-                    // 素材(獲得量はメインストーリーの進行度依存)
-                    let amount = Int(Double(Int.random(in: 2...4) + storyProgress / 3) * materialScale)
+                    // 素材(潜っているダンジョンが後半ほど量が増える)
+                    let amount = Int(Double(Int.random(in: 1...3) + dungeon.recommendedLevel / 4) * materialScale)
                     run.collectedMaterials += amount
                     appendLog(&run, date: tickDate, message: "素材を\(amount)個拾った")
                 } else if roll < 83 {
-                    // コイン(獲得量はメインストーリーの進行度依存)
-                    let amount = Int(Double(Int.random(in: 30...60) + storyProgress * 8) * coinScale)
+                    // コイン(潜っているダンジョンが後半ほど量が増える)
+                    let amount = Int(Double(Int.random(in: 10...20) + dungeon.recommendedLevel * 3) * coinScale)
                     run.collectedCoins += amount
                     appendLog(&run, date: tickDate, message: "コインを\(amount)枚拾った")
                 } else if roll < 83 + 10 * equipScale {

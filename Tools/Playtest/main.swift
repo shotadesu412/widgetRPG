@@ -80,10 +80,11 @@ func manageEvolution() {
     let chara = data.characters[i]
     guard chara.canEvolve else { return }
     if CharacterProgression.evolve(&data, characterID: chara.id) {
-        note("進化! → \(data.characters[i].displayName)(必殺技: \(data.characters[i].ultimate?.name ?? "なし"))")
+        note("進化! → \(data.characters[i].displayName)(必殺技: \(data.characters[i].ultimate?.name ?? "なし") / 残り石\(data.stoneCount(chara.job().element)))")
     } else {
         stats.stoneShortageEvents += 1
-        stats.stoneWaitHours += Double(tickMinutes) / 60
+        // 進化待ちの時間(カジュアルはチェック間隔ぶん)
+        stats.stoneWaitHours += casual ? 4.8 : Double(tickMinutes) / 60
     }
 }
 
