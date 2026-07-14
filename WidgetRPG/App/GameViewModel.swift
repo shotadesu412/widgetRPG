@@ -134,14 +134,26 @@ final class GameViewModel: ObservableObject {
 
     // MARK: - 卵・オトモ(孵化は自動ではなく手動でセット)
 
-    /// 卵を孵化器にセットする(1個ずつ)。テイマー編成で孵化時間短縮
+    /// モンスターテイマーが仲間にいるか(ルルイエ海淵クリア報酬)
+    var hasMonsterTamer: Bool { data.characters.contains { $0.jobID == "monster_tamer" } }
+
+    /// 卵を孵化器にセットする(1個ずつ)。
+    /// 珍しい/伝説の卵はテイマーを編成して潜入すると孵化が2倍速で進む
     func startIncubation(_ egg: Egg) {
         guard data.incubatingEggID == nil,
               let index = data.eggs.firstIndex(where: { $0.id == egg.id }) else { return }
-        let hatchScale = data.partySupportJobIDs.contains("monster_tamer") ? 0.7 : 1.0
         data.eggs[index].incubationStartedAt = Date()
-        data.eggs[index].hatchSeconds = egg.grade.hatchSeconds * hatchScale
+        data.eggs[index].hatchSeconds = egg.grade.hatchSeconds
         data.incubatingEggID = egg.id
+        save()
+    }
+
+    /// 普通の卵の即時孵化(モンスターテイマー加入後は編成不要で使える)
+    func hatchInstantly(_ egg: Egg) {
+        guard hasMonsterTamer, egg.grade == .normal, !egg.isIncubating,
+              let index = data.eggs.firstIndex(where: { $0.id == egg.id }) else { return }
+        data.eggs.remove(at: index)
+        data.otomos.append(ItemFactory.hatch(egg))
         save()
     }
 

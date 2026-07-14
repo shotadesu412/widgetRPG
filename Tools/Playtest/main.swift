@@ -137,6 +137,14 @@ func manageShop() {
 }
 
 func manageEggs() {
+    // テイマー加入後: 普通の卵はまとめて即時孵化
+    if data.characters.contains(where: { $0.jobID == "monster_tamer" }) {
+        while let idx = data.eggs.firstIndex(where: { $0.grade == .normal && !$0.isIncubating }) {
+            let egg = data.eggs.remove(at: idx)
+            data.otomos.append(ItemFactory.hatch(egg))
+            stats.eggsHatched += 1
+        }
+    }
     // 孵化完了 → 迎える
     if let egg = data.incubatingEgg, egg.isReady(now: now) {
         if let idx = data.eggs.firstIndex(where: { $0.id == egg.id }) {

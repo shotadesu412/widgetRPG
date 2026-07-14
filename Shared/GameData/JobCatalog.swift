@@ -128,7 +128,7 @@ enum JobCatalog {
             element: .water, slotCount: 3,
             baseStats: supportStats,
             growth: supportGrowth,
-            speciality: "編成して潜入すると卵の孵化時間短縮・オトモ経験値アップ"),
+            speciality: "加入しているだけで普通の卵を即時孵化。編成して潜入すると珍しい/伝説の卵の孵化が2倍速・オトモ経験値アップ"),
         Job(id: "professor", category: .specialSupport,
             stageNames: ["はかせ", "博士"],
             element: .electric, slotCount: 3,

@@ -159,6 +159,11 @@ struct EggCard: View {
     @EnvironmentObject private var game: GameViewModel
     let egg: Egg
 
+    /// テイマー加入後、普通の卵は孵化器を使わず即時孵化できる
+    private var canHatchInstantly: Bool {
+        game.hasMonsterTamer && egg.grade == .normal
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             EggCrackView(crackStage: 0, size: 56)
@@ -169,24 +174,38 @@ struct EggCard: View {
                 .font(.system(size: 9))
                 .foregroundStyle(Palette.textSecondary)
 
-            Button {
-                game.startIncubation(egg)
-            } label: {
-                Text("セットする")
-                    .font(.caption2.bold())
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(
-                        game.data.incubatingEggID == nil ? Palette.accent : Palette.panelBorder))
-                    .foregroundStyle(game.data.incubatingEggID == nil ? Palette.background : Palette.textSecondary)
+            if canHatchInstantly {
+                Button {
+                    game.hatchInstantly(egg)
+                } label: {
+                    Text("即時孵化")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Palette.hpGreen))
+                        .foregroundStyle(Palette.background)
+                }
+            } else {
+                Button {
+                    game.startIncubation(egg)
+                } label: {
+                    Text("セットする")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(
+                            game.data.incubatingEggID == nil ? Palette.accent : Palette.panelBorder))
+                        .foregroundStyle(game.data.incubatingEggID == nil ? Palette.background : Palette.textSecondary)
+                }
+                .disabled(game.data.incubatingEggID != nil)
             }
-            .disabled(game.data.incubatingEggID != nil)
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10).fill(Palette.background))
     }
 
     private var hatchHint: String {
+        if canHatchInstantly { return "テイマーの力ですぐ孵る" }
         let hours = Int(egg.grade.hatchSeconds / 3600)
         return "孵化まで約\(hours)時間"
     }

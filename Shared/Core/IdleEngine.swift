@@ -131,6 +131,15 @@ enum IdleEngine {
 
         run.lastProcessed = run.lastProcessed.addingTimeInterval(TimeInterval(elapsedMinutes * 60))
         data.activeRun = run
+
+        // モンスターテイマーを編成して潜入中は、珍しい/伝説の卵の孵化が2倍速で進む
+        // (潜入1分ごとに残り孵化時間を追加で1分減らす)
+        if data.partySupportJobIDs.contains("monster_tamer"),
+           let eggID = data.incubatingEggID,
+           let index = data.eggs.firstIndex(where: { $0.id == eggID }),
+           data.eggs[index].grade != .normal {
+            data.eggs[index].hatchSeconds = max(0, data.eggs[index].hatchSeconds - Double(elapsedMinutes * 60))
+        }
     }
 
     private static func appendLog(_ run: inout DungeonRun, date: Date, message: String) {
@@ -160,6 +169,16 @@ enum IdleEngine {
                 if map == MainArc.mapsPerArc, Double.random(in: 0..<1) < 0.3,
                    let speciesID = mythicSpeciesID(for: arc) {
                     data.eggs.append(ItemFactory.makeEgg(grade: .legendary, fixedSpeciesID: speciesID))
+                }
+                // ルルイエ海淵クリア報酬: モンスターテイマーが確定加入
+                if arc == .cthulhu, map == MainArc.mapsPerArc,
+                   !data.characters.contains(where: { $0.jobID == "monster_tamer" }) {
+                    let job = JobCatalog.job(id: "monster_tamer")
+                    var tamer = PlayerCharacter(jobID: job.id)
+                    tamer.learnedSkills = JobCatalog.starterSkills(for: job)
+                    tamer.placedSkills = Array(repeating: nil, count: job.slotCount)
+                    tamer.placedSkills[0] = tamer.learnedSkills.first
+                    data.characters.append(tamer)
                 }
             }
         }
