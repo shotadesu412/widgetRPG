@@ -28,29 +28,29 @@ enum CharacterProgression {
     }
 
     /// レベル到達時の自動習得(レベルアップ1ごとに呼ぶ)。
-    /// スキルはジョブプール(未定義なら共通プール)から抽選し、空きスロットへ自動配置。
-    /// パッシブはジョブのパッシブプール(未定義なら共通プール)から抽選
+    /// メインキャラのスキル・パッシブは職ごとの固定キット(JobCatalog.kits)。
+    /// 抽選はしない(オトモ・装備のみ抽選)
     static func grantLevelRewards(_ chara: inout PlayerCharacter, reachedLevel: Int) {
-        let job = chara.job()
+        guard let kit = JobCatalog.kit(for: chara.jobID) else { return }
 
         if skillLevels.contains(reachedLevel) {
-            let pool = SkillCatalog.jobSkills[job.id].flatMap { $0.isEmpty ? nil : $0 }
-                ?? SkillCatalog.jobDefaultSkills
-            if let entry = SkillCatalog.draw(from: pool) {
-                let skill = entry.make(element: job.element)
-                chara.learnedSkills.append(skill)
-                if let slot = chara.placedSkills.firstIndex(where: { $0 == nil }) {
-                    chara.placedSkills[slot] = skill
-                }
+            let skill = reachedLevel >= 70 ? kit.skill70 : kit.skill10
+            // 同名の重複習得を防ぐ(レベルの巻き戻し等の保険)
+            guard !chara.learnedSkills.contains(where: { $0.name == skill.name }) else { return }
+            chara.learnedSkills.append(skill)
+            if let slot = chara.placedSkills.firstIndex(where: { $0 == nil }) {
+                chara.placedSkills[slot] = skill
             }
         }
 
         if passiveLevels.contains(reachedLevel) {
-            let pool = SkillCatalog.jobPassives[job.id].flatMap { $0.isEmpty ? nil : $0 }
-                ?? SkillCatalog.characterPassives
-            if let entry = SkillCatalog.draw(from: pool) {
-                chara.passives.append(entry.make())
+            let passive: Passive = switch reachedLevel {
+            case 80...: kit.passive80
+            case 60...: kit.passive60
+            default: kit.passive30
             }
+            guard !chara.passives.contains(passive) else { return }
+            chara.passives.append(passive)
         }
     }
 

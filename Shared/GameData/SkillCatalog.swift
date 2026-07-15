@@ -254,34 +254,8 @@ enum SkillCatalog {
         (otomoCategorySkills[species.category] ?? []) + (otomoSpeciesSkills[species.id] ?? [])
     }
 
-    // MARK: ジョブ(メインキャラ)のレベル習得プール
-
-    /// ジョブごとに出るスキルの管理(Lv10/70の習得抽選用)。
-    /// 未定義のジョブは jobDefaultSkills から抽選される
-    static let jobSkills: [String: [SkillEntry]] = [:]
-
-    /// ジョブ共通のスキルプール(Lv10/70)。バリアは 15/20/30% の3段階
-    static let jobDefaultSkills: [SkillEntry] = [
-        SkillEntry("job_c1", .common, "薙ぎの一撃", .attack, 120),
-        SkillEntry("job_c2", .common, "気合いため", .buff, 100),
-        SkillEntry("job_c3", .common, "応急手当", .heal, 80),
-        SkillEntry("job_c4", .common, "身がまえ", .barrier, 15),
-        SkillEntry("job_u1", .uncommon, "闘気斬", .specialAttack, 160),
-        SkillEntry("job_u2", .uncommon, "威圧", .debuff, 120),
-        SkillEntry("job_u3", .uncommon, "鉄壁", .barrier, 20),
-        SkillEntry("job_u4", .uncommon, "薙ぎ払い", .attack, 90, target: .all),
-        SkillEntry("job_r1", .rare, "極撃", .specialAttack, 220),
-        SkillEntry("job_r2", .rare, "絶対防御", .barrier, 30),
-        SkillEntry("job_r3", .rare, "燃焼撃", .attack, 160, ailment: .burn, ailmentChance: 40),
-    ]
-
-    /// ジョブごとに出るパッシブの管理(Lv30/60/80の習得抽選用)。
-    /// 未定義のジョブは characterPassives から抽選される
-    static let jobPassives: [String: [PassiveEntry]] = [:]
-
-    /// キャラ共通のパッシブプール(Lv30/60/80)
-    static let characterPassives: [PassiveEntry] =
-        passives(["p_stat", "p_empty", "p_odd", "p_even", "p_elem", "p_lowhp", "p_double"])
+    // メインキャラのスキル・パッシブ・必殺技は抽選せず、
+    // 職ごとの固定キット(JobKits.swift の JobCatalog.kits)で管理する
 
     // MARK: - 抽選
 

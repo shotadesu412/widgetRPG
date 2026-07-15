@@ -179,14 +179,10 @@ enum JobCatalog {
     }
 
     /// 進化で習得する必殺技(stage 1=第一必殺技、stage 2=第二必殺技)。
-    /// 必要周回数は必殺技の強さに連動(UltimateSkill.loops(forPower:))。
-    /// スロットマシンは必殺技を持たない。レア職(進化なし)は加入時に第一必殺技を持つ
+    /// 中身は職ごとの固定キット(JobCatalog.kits)。
+    /// スロットマシン等は必殺技を持たない。レア職(進化なし)は加入時に第一必殺技を持つ
     static func ultimate(for job: Job, stage: Int) -> UltimateSkill? {
-        if job.id == "slot_machine" { return nil }
-        let kind: UltimateKind = job.element == .water ? .heal : .damageAll
-        let power = stage <= 1 ? 230 : 320
-        let name = stage <= 1 ? "\(job.name(atStage: 1))の極意" : "\(job.name(atStage: 2))の奥義"
-        return UltimateSkill(name: name, kind: kind, power: power,
-                             requiredLoops: UltimateSkill.loops(forPower: power))
+        guard let kit = kit(for: job.id) else { return nil }
+        return stage <= 1 ? kit.ultimate1 : (kit.ultimate2 ?? kit.ultimate1)
     }
 }
