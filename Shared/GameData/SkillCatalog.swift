@@ -50,12 +50,17 @@ struct SkillEntry: Identifiable, DrawableEntry {
     var ailmentChance: Int = 0
     /// 回復のとき: 最大HPの power% を回復する割合回復
     var percentBased: Bool = false
+    /// 与えたダメージの何%を自己回復するか(吸血)
+    var drainPct: Int = 0
+    /// 状態異常にかかっている敵へのダメージ1.3倍(追い討ち)
+    var bonusVsAilment: Bool = false
 
     init(_ id: String, _ tier: DrawTier, _ name: String, _ kind: SkillKind, _ power: Int,
          _ weaponEffect: WeaponEffect? = nil,
          target: SkillTargetKind? = nil,
          ailment: Ailment? = nil, ailmentChance: Int = 0,
-         percentBased: Bool = false) {
+         percentBased: Bool = false,
+         drainPct: Int = 0, bonusVsAilment: Bool = false) {
         self.id = id
         self.tier = tier
         self.name = name
@@ -66,13 +71,15 @@ struct SkillEntry: Identifiable, DrawableEntry {
         self.ailment = ailment
         self.ailmentChance = ailmentChance
         self.percentBased = percentBased
+        self.drainPct = drainPct
+        self.bonusVsAilment = bonusVsAilment
     }
 
     func make(element: Element?, powerScale: Double = 1.0) -> Skill {
         Skill(name: name, kind: kind, power: max(1, Int(Double(power) * powerScale)),
               element: element, weaponEffect: weaponEffect, tier: tier,
               target: target, ailment: ailment, ailmentChance: ailmentChance,
-              percentBased: percentBased)
+              percentBased: percentBased, drainPct: drainPct, bonusVsAilment: bonusVsAilment)
     }
 }
 
@@ -108,6 +115,7 @@ enum SkillCatalog {
         .sword: [
             SkillEntry("sword_c1", .common, "強斬り", .attack, 130, .single),
             SkillEntry("sword_u1", .uncommon, "渾身の一撃", .attack, 170, .single),
+            SkillEntry("sword_u2", .uncommon, "吸命剣", .attack, 140, .single, drainPct: 50),
             SkillEntry("sword_r1", .rare, "秘剣・一閃", .attack, 220, .single),
         ],
         .greatsword: [
@@ -118,6 +126,7 @@ enum SkillCatalog {
         .dagger: [
             SkillEntry("dg_c1", .common, "急所突き", .attack, 90, .crit),
             SkillEntry("dg_u1", .uncommon, "背刺し", .attack, 110, .crit),
+            SkillEntry("dg_u2", .uncommon, "追い討ちの刃", .attack, 100, .crit, bonusVsAilment: true),
             SkillEntry("dg_r1", .rare, "絶命の刃", .attack, 140, .crit),
         ],
         .twinBlade: [
@@ -157,10 +166,13 @@ enum SkillCatalog {
         PassiveEntry("p_loop2", .uncommon, .secondLoopBoost, 8...15),
         PassiveEntry("p_elem", .uncommon, .elementBoost, 8...15),
         PassiveEntry("p_otomo", .uncommon, .otomoBoost, 8...15),
+        PassiveEntry("p_guard", .uncommon, .ailmentGuard, 20...35),
+        PassiveEntry("p_counter", .uncommon, .counter, 15...25),
         // 珍しい
         PassiveEntry("p_double", .rare, .doubleAct, 5...10),
         PassiveEntry("p_lowhp", .rare, .lowHPBoost, 15...25),
         PassiveEntry("p_flat", .rare, .flatDamage, 10...20),
+        PassiveEntry("p_drain", .rare, .drain, 10...20),
     ]
 
     private static func passives(_ ids: [String]) -> [PassiveEntry] {
@@ -170,10 +182,10 @@ enum SkillCatalog {
     /// 防具種ごとに出るパッシブの管理(鎧=防御系 / マント=属性系 / ローブ=魔力・オトモ系 / 指輪=強レア寄り)。
     /// 各プールにレア度3段階が揃うようにしておくと排出率(70/25/5)が安定する
     static let armorPassives: [ArmorType: [PassiveEntry]] = [
-        .plate: passives(["p_stat", "p_mini", "p_empty", "p_loop1", "p_lowhp"]),
-        .cloak: passives(["p_stat", "p_mini", "p_elem", "p_odd", "p_even", "p_flat"]),
-        .robe: passives(["p_stat", "p_empty", "p_loop2", "p_otomo", "p_elem", "p_lowhp"]),
-        .ring: passives(["p_empty", "p_mini", "p_loop1", "p_double", "p_lowhp", "p_flat"]),
+        .plate: passives(["p_stat", "p_mini", "p_empty", "p_loop1", "p_counter", "p_guard", "p_lowhp"]),
+        .cloak: passives(["p_stat", "p_mini", "p_elem", "p_odd", "p_even", "p_guard", "p_flat"]),
+        .robe: passives(["p_stat", "p_empty", "p_loop2", "p_otomo", "p_elem", "p_lowhp", "p_drain"]),
+        .ring: passives(["p_empty", "p_mini", "p_loop1", "p_counter", "p_double", "p_lowhp", "p_flat", "p_drain"]),
     ]
 
     // MARK: オトモスキル(カテゴリ共通プール+種族固有プール)
@@ -187,8 +199,9 @@ enum SkillCatalog {
             SkillEntry("gr_c2", .common, "ひっかき", .attack, 95),
             SkillEntry("gr_u1", .uncommon, "突進", .attack, 150),
             SkillEntry("gr_u2", .uncommon, "毒牙", .attack, 120, ailment: .poison, ailmentChance: 30),
+            SkillEntry("gr_u3", .uncommon, "追い討ち", .attack, 120, bonusVsAilment: true),
             SkillEntry("gr_r1", .rare, "大暴れ", .specialAttack, 130, target: .all),
-            SkillEntry("gr_r2", .rare, "捕食", .specialAttack, 220),
+            SkillEntry("gr_r2", .rare, "捕食", .specialAttack, 180, drainPct: 40),
         ],
         .aquatic: [
             SkillEntry("aq_c1", .common, "水鉄砲", .magic, 110),
@@ -229,6 +242,7 @@ enum SkillCatalog {
         .mythic: [
             SkillEntry("my_c1", .common, "異形の触手", .attack, 130),
             SkillEntry("my_u1", .uncommon, "狂気の囁き", .attack, 120, ailment: .brainwash, ailmentChance: 30),
+            SkillEntry("my_u2", .uncommon, "生気吸収", .attack, 130, drainPct: 60),
             SkillEntry("my_r1", .rare, "星の彼方", .specialAttack, 150, target: .all, ailment: .weakness, ailmentChance: 40),
         ],
     ]
@@ -237,6 +251,8 @@ enum SkillCatalog {
     /// 「このキャラにだけ出したい」スキルはここに足す
     static let otomoSpeciesSkills: [String: [SkillEntry]] = [
         "spider": [SkillEntry("spider_u1", .uncommon, "イト吐き", .debuff, 100)],
+        "bat": [SkillEntry("bat_u1", .uncommon, "吸血", .attack, 110, drainPct: 100)],
+        "wolf": [SkillEntry("wolf_u1", .uncommon, "群狼の牙", .attack, 130, bonusVsAilment: true)],
         "bee": [SkillEntry("bee_u1", .uncommon, "毒針の一撃", .attack, 130, ailment: .poison, ailmentChance: 30)],
         "octopus": [SkillEntry("octo_u1", .uncommon, "タコヒール", .heal, 100)],
         "snake": [SkillEntry("snake_u1", .uncommon, "絞めつけ", .attack, 110, ailment: .speedDown, ailmentChance: 30)],
@@ -247,7 +263,7 @@ enum SkillCatalog {
 
     /// オトモのパッシブプール(付与時に効果値0.7倍で弱められる)
     static let otomoPassives: [PassiveEntry] =
-        passives(["p_stat", "p_empty", "p_odd", "p_even", "p_elem", "p_mini", "p_lowhp"])
+        passives(["p_stat", "p_empty", "p_odd", "p_even", "p_elem", "p_mini", "p_guard", "p_counter", "p_lowhp", "p_drain"])
 
     /// 種族のスキル抽選プール(カテゴリ共通+種族固有)
     static func otomoPool(for species: OtomoSpecies) -> [SkillEntry] {

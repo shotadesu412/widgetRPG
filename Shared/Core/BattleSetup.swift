@@ -46,8 +46,20 @@ extension BattleEngine {
             engine.allies.append(unit)
         }
 
+        // オトモ強化パッシブ: メインキャラ(本体+防具)の otomoBoost 合計でオトモが強くなる
+        let otomoBoostMul: Double = {
+            var total = 0
+            for chara in data.partyCharacters {
+                total += chara.passives.filter { $0.kind == .otomoBoost }.reduce(0) { $0 + $1.value }
+                if let armor = data.armor(id: chara.armorID) {
+                    total += armor.activePassives.filter { $0.kind == .otomoBoost }.reduce(0) { $0 + $1.value }
+                }
+            }
+            return 1.0 + Double(total) / 100
+        }()
+
         for otomo in data.partyOtomos {
-            let stats = otomo.grownStats
+            let stats = otomo.grownStats.scaled(by: otomoBoostMul)
             let species = otomo.species()
             // スキルは孵化時に決まったスロット位置に入る(空き位置は通常攻撃)
             let slots: [BattleAction] = (0..<otomo.slotCount).map { index in
@@ -158,25 +170,46 @@ extension BattleEngine {
 
     /// ゲーム内スキル → 戦闘アクションの変換
     private static func action(from skill: Skill) -> BattleAction {
+        let drain = skill.drainPct
+        let bonus = skill.bonusVsAilment
         // 武器スキルは武器種の効果傾向を優先する
         if let effect = skill.weaponEffect {
             switch effect {
             case .single:     // 剣: 単体
-                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy))
+                return BattleAction(name: skill.name, kind: .damage(
+                    pct: skill.power, target: .singleEnemy,
+                    inflict: skill.ailment, inflictChance: skill.ailmentChance,
+                    drainPct: drain, bonusVsAilment: bonus))
             case .aoe:        // 大剣: 全体攻撃
-                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .allEnemies))
+                return BattleAction(name: skill.name, kind: .damage(
+                    pct: skill.power, target: .allEnemies,
+                    inflict: skill.ailment, inflictChance: skill.ailmentChance,
+                    drainPct: drain, bonusVsAilment: bonus))
             case .crit:       // 短剣: クリティカル
-                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, critChance: 40))
+                return BattleAction(name: skill.name, kind: .damage(
+                    pct: skill.power, target: .singleEnemy, critChance: 40,
+                    inflict: skill.ailment, inflictChance: skill.ailmentChance,
+                    drainPct: drain, bonusVsAilment: bonus))
             case .multiHit:   // 双剣: 複数回攻撃
-                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, hits: 2...2))
+                return BattleAction(name: skill.name, kind: .damage(
+                    pct: skill.power, target: .singleEnemy, hits: 2...2,
+                    inflict: skill.ailment, inflictChance: skill.ailmentChance,
+                    drainPct: drain, bonusVsAilment: bonus))
             case .magic:      // 杖: 魔力依存
-                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, stat: .magic))
+                return BattleAction(name: skill.name, kind: .damage(
+                    pct: skill.power, target: .singleEnemy, stat: .magic,
+                    inflict: skill.ailment, inflictChance: skill.ailmentChance,
+                    drainPct: drain, bonusVsAilment: bonus))
             case .randomHits: // リボルバー: ランダムな回数攻撃
-                return BattleAction(name: skill.name, kind: .damage(pct: skill.power, target: .singleEnemy, hits: 1...5))
+                return BattleAction(name: skill.name, kind: .damage(
+                    pct: skill.power, target: .singleEnemy, hits: 1...5,
+                    inflict: skill.ailment, inflictChance: skill.ailmentChance,
+                    drainPct: drain, bonusVsAilment: bonus))
             case .debuff:     // 弓: デバフ(攻撃低下 or 速度低下を付与)
                 return BattleAction(name: skill.name, kind: .damage(
                     pct: skill.power, target: .singleEnemy,
-                    inflict: Bool.random() ? .attackDown : .speedDown, inflictChance: 40))
+                    inflict: Bool.random() ? .attackDown : .speedDown, inflictChance: 40,
+                    drainPct: drain, bonusVsAilment: bonus))
             }
         }
         // スキルの対象指定(攻撃系=敵、回復系=味方に読み替え)
@@ -193,11 +226,13 @@ extension BattleEngine {
         case .attack, .specialAttack:
             BattleAction(name: skill.name, kind: .damage(
                 pct: skill.power, target: enemyTarget,
-                inflict: skill.ailment, inflictChance: skill.ailmentChance))
+                inflict: skill.ailment, inflictChance: skill.ailmentChance,
+                drainPct: drain, bonusVsAilment: bonus))
         case .magic:
             BattleAction(name: skill.name, kind: .damage(
                 pct: skill.power, target: enemyTarget, stat: .magic,
-                inflict: skill.ailment, inflictChance: skill.ailmentChance))
+                inflict: skill.ailment, inflictChance: skill.ailmentChance,
+                drainPct: drain, bonusVsAilment: bonus))
         case .heal:
             skill.percentBased
                 ? BattleAction(name: skill.name, kind: .healPercent(pct: skill.power, target: allyTarget))

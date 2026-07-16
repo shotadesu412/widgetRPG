@@ -102,6 +102,10 @@ struct Skill: Identifiable, Codable, Hashable {
     var ailmentChance: Int = 0
     /// 回復のとき: true なら対象の最大HPの power% を回復(割合回復)
     var percentBased: Bool = false
+    /// 与えたダメージの何%を自己回復するか(吸血)
+    var drainPct: Int = 0
+    /// 状態異常にかかっている敵へのダメージ1.3倍(追い討ち)
+    var bonusVsAilment: Bool = false
 
     /// スキル効果の説明文。戦闘での実際の挙動(BattleSetup.action(from:))と対応させる
     var effectText: String {
@@ -140,6 +144,12 @@ struct Skill: Identifiable, Codable, Hashable {
         }
         if let ailment, ailmentChance > 0 {
             base += " + \(ailmentChance)%で\(ailment.label)"
+        }
+        if drainPct > 0 {
+            base += " + 与ダメージの\(drainPct)%を自己回復"
+        }
+        if bonusVsAilment {
+            base += "(状態異常の敵に1.3倍)"
         }
         return base
     }
@@ -191,9 +201,10 @@ struct UltimateSkill: Codable, Hashable {
     }
 }
 
-/// パッシブ(防具・キャラ・オトモが持つ。抽選プールは SkillCatalog で管理)
+/// パッシブ(防具・キャラ・オトモが持つ。抽選プールは SkillCatalog で管理)。
+/// 全種が戦闘に実装済み
 enum PassiveKind: String, Codable, CaseIterable {
-    case doubleAct        // ランダムで2回行動(未実装)
+    case doubleAct        // 確率で2回行動
     case statBoost        // ステータス上昇
     case oddSlotBoost     // 奇数番目強化
     case evenSlotBoost    // 偶数番目強化
@@ -201,10 +212,13 @@ enum PassiveKind: String, Codable, CaseIterable {
     case secondLoopBoost  // 2周目強化
     case emptySlotBoost   // 空きスロットの通常攻撃強化
     case elementBoost     // 属性強化
-    case otomoBoost       // オトモステータスアップ(未実装)
-    case lowHPBoost       // HP低下で強化(未実装)
-    case flatDamage       // 特定行動に固定ダメージ追加(未実装)
+    case otomoBoost       // オトモステータスアップ(メインキャラが持つとオトモが強くなる)
+    case lowHPBoost       // 背水の陣: 失ったHPに応じてダメージ増
+    case flatDamage       // 攻撃1ヒットごとに固定ダメージ追加(手数と相性が良い)
     case miniBarrier      // プチバリア
+    case drain            // 吸血: 与ダメージの一部を自己回復
+    case counter          // 反撃: 被弾時に確率で反撃
+    case ailmentGuard     // 状態異常耐性: 確率で状態異常を防ぐ
 
     var label: String {
         switch self {
@@ -220,6 +234,9 @@ enum PassiveKind: String, Codable, CaseIterable {
         case .lowHPBoost: "背水の陣"
         case .flatDamage: "固定ダメージ追加"
         case .miniBarrier: "プチバリア"
+        case .drain: "吸血"
+        case .counter: "反撃"
+        case .ailmentGuard: "状態異常耐性"
         }
     }
 
@@ -231,10 +248,10 @@ enum PassiveKind: String, Codable, CaseIterable {
         }
     }
 
-    /// パッシブ効果の説明文(戦闘での実挙動と対応。未実装のものは今後実装)
+    /// パッシブ効果の説明文(戦闘での実挙動と対応)
     var effectDescription: String {
         switch self {
-        case .doubleAct: "確率で2回行動する"
+        case .doubleAct: "行動後、確率でもう一度行動する(必殺技は対象外)"
         case .statBoost: "全ステータスが上がる"
         case .oddSlotBoost: "奇数番スロットの技のダメージが上がる"
         case .evenSlotBoost: "偶数番スロットの技のダメージが上がる"
@@ -242,10 +259,13 @@ enum PassiveKind: String, Codable, CaseIterable {
         case .secondLoopBoost: "2周目の技のダメージが上がる"
         case .emptySlotBoost: "空きスロットの通常攻撃のダメージが上がる"
         case .elementBoost: "自属性の攻撃ダメージが上がる"
-        case .otomoBoost: "オトモのステータスが上がる"
-        case .lowHPBoost: "HPが低いほど強化される"
-        case .flatDamage: "攻撃に固定ダメージを追加する"
+        case .otomoBoost: "編成中のオトモのステータスが上がる"
+        case .lowHPBoost: "失ったHPの割合に応じて与ダメージが上がる(HP0%時に最大)"
+        case .flatDamage: "攻撃1ヒットごとに効果値×3の固定ダメージを追加する"
         case .miniBarrier: "開戦時に最大HPに応じたバリアを張る"
+        case .drain: "与えたダメージの一部を自己回復する"
+        case .counter: "攻撃を受けたとき、確率で反撃する"
+        case .ailmentGuard: "状態異常を確率で防ぐ"
         }
     }
 }

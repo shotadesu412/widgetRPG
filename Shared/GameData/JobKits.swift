@@ -18,9 +18,11 @@ struct JobKit {
 // 記述を短くするためのヘルパ
 private func sk(_ name: String, _ kind: SkillKind, _ power: Int, _ element: Element?,
                 effect: WeaponEffect? = nil, target: SkillTargetKind? = nil,
-                ailment: Ailment? = nil, chance: Int = 0) -> Skill {
+                ailment: Ailment? = nil, chance: Int = 0,
+                drain: Int = 0, bonusVsAilment: Bool = false) -> Skill {
     Skill(name: name, kind: kind, power: power, element: element,
-          weaponEffect: effect, target: target, ailment: ailment, ailmentChance: chance)
+          weaponEffect: effect, target: target, ailment: ailment, ailmentChance: chance,
+          drainPct: drain, bonusVsAilment: bonusVsAilment)
 }
 
 private func ps(_ kind: PassiveKind, _ value: Int) -> Passive {
@@ -89,7 +91,7 @@ extension JobCatalog {
             skill10: sk("金棒振り", .attack, 150, .dark),
             skill70: sk("鬼哭", .attack, 120, .dark, target: .all),
             passive30: ps(.statBoost, 6),
-            passive60: ps(.miniBarrier, 8),
+            passive60: ps(.counter, 20),
             passive80: ps(.elementBoost, 12),
             ultimate1: ult("鬼の宴", .damageAll, 230),
             ultimate2: ult("鬼神楽", .damageAll, 320)),
@@ -137,17 +139,17 @@ extension JobCatalog {
         "beast_master": JobKit(
             skill10: sk("鞭打ち", .attack, 130, .fire),
             skill70: sk("野生の号令", .buff, 130, .fire),
-            passive30: ps(.statBoost, 6),
+            passive30: ps(.otomoBoost, 10),
             passive60: ps(.elementBoost, 10),
-            passive80: ps(.evenSlotBoost, 10),
+            passive80: ps(.otomoBoost, 15),
             ultimate1: ult("群れの咆哮", .damageAll, 230),
             ultimate2: nil),
         "zombie": JobKit(
-            skill10: sk("かじりつき", .attack, 130, .dark),
+            skill10: sk("かじりつき", .attack, 130, .dark, drain: 40),
             skill70: sk("病毒の爪", .attack, 140, .dark, ailment: .poison, chance: 40),
-            passive30: ps(.miniBarrier, 8),
+            passive30: ps(.drain, 15),
             passive60: ps(.statBoost, 8),
-            passive80: ps(.emptySlotBoost, 10),
+            passive80: ps(.lowHPBoost, 20),
             ultimate1: ult("死者の行進", .damageAll, 230),
             ultimate2: nil),
 
@@ -195,7 +197,7 @@ extension JobCatalog {
             skill10: sk("びしばし指導", .attack, 120, .water),
             skill70: sk("熱血指導", .buff, 130, .water),
             passive30: ps(.statBoost, 5),
-            passive60: ps(.statBoost, 8),
+            passive60: ps(.otomoBoost, 12),
             passive80: ps(.miniBarrier, 8),
             ultimate1: nil, ultimate2: nil),
 
@@ -210,7 +212,7 @@ extension JobCatalog {
             ultimate2: nil),
         "akuma": JobKit(
             skill10: sk("魔炎", .attack, 140, .dark, ailment: .burn, chance: 20),
-            skill70: sk("深淵の爪", .attack, 210, .dark),
+            skill70: sk("深淵の爪", .attack, 180, .dark, drain: 40),
             passive30: ps(.statBoost, 8),
             passive60: ps(.elementBoost, 10),
             passive80: ps(.evenSlotBoost, 10),
