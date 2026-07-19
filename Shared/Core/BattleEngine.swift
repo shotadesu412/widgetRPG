@@ -292,8 +292,12 @@ final class BattleEngine: ObservableObject {
     }
 
     private func advanceGauges(_ units: inout [Unit], deltaTime: Double) {
+        // 行動頻度 = 50 + 素早さ/2(逓減式)。
+        // 素早さ100(剣士アンカー)で従来と同じ頻度になり、
+        // 速いキャラの伸びを圧縮・遅いキャラを底上げする(速度=防御とのトレードオフ設計)
         for i in units.indices where units[i].isAlive {
-            units[i].gauge = min(1.0, units[i].gauge + deltaTime * Double(units[i].effectiveSpeed) / 60.0)
+            let rate = 50.0 + Double(units[i].effectiveSpeed) / 2.0
+            units[i].gauge = min(1.0, units[i].gauge + deltaTime * rate / 60.0)
         }
     }
 
@@ -403,17 +407,13 @@ final class BattleEngine: ObservableObject {
         checkEnd()
     }
 
-    /// スロットの進行。逆光中は逆回りし、スロット1→3を跨いだら必殺ターンも1下がる
+    /// スロットの進行。逆光中は逆回りする(周回は進まないが必殺ターンは減らない)
     private func advanceSlot(on unit: inout Unit) {
         guard !unit.slots.isEmpty else { return }
         if unit.ailments.contains(.reverse) {
             unit.slotIndex -= 1
             if unit.slotIndex < 0 {
                 unit.slotIndex = unit.slots.count - 1
-                if unit.loops > 0 {
-                    unit.loops -= 1
-                    appendLog("\(unit.name)のスロットが逆流……必殺ターンが遠のいた")
-                }
             }
         } else {
             unit.slotIndex += 1
@@ -623,7 +623,7 @@ final class BattleEngine: ObservableObject {
                   let counter = foe.gamePassives.first(where: { $0.kind == .counter }),
                   Int.random(in: 0..<100) < counter.value else { continue }
             let defense = unit.isAlly ? unit.effectiveDefense : 0
-            let raw = Double(foe.attack) - Double(defense) / 2.0
+            let raw = Double(foe.attack) * 250.0 / (250.0 + Double(defense))
             let damage = max(1, Int(raw * foe.element.multiplier(against: unit.element)))
             unit.hp = max(0, unit.hp - damage)
             unit.floating = FloatingNumber(value: damage, kind: .damage)
@@ -709,9 +709,11 @@ final class BattleEngine: ObservableObject {
                             flatBonus: Int = 0, bonusVsAilment: Bool = false,
                             label: String) -> Int {
         guard var target = findUnit(id: targetID), target.isAlive else { return 0 }
-        // 敵は防御ステータスを持たない(味方のみ防御でダメージ軽減)
+        // 敵は防御ステータスを持たない(味方のみ防御でダメージ軽減)。
+        // 防御は割合軽減: ×250/(250+防御)。引き算式と違い、
+        // 積んでも無敵にならず逓減する(防御150で-38%、300で-55%)
         let defense = target.isAlly ? target.effectiveDefense : 0
-        let raw = Double(attackStat) * Double(pct) / 100.0 - Double(defense) / 2.0
+        let raw = Double(attackStat) * Double(pct) / 100.0 * 250.0 / (250.0 + Double(defense))
         var damage = max(1, Int(raw * element.multiplier(against: target.element)))
         // クリティカル(短剣など): 2倍
         let isCrit = critChance > 0 && Int.random(in: 0..<100) < critChance

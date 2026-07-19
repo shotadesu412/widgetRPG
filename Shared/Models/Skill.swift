@@ -5,7 +5,7 @@ enum Ailment: String, CaseIterable, Codable, Hashable {
     case poison     // 毒: 現在HPの5%のダメージを行動ごとに受ける
     case brainwash  // 洗脳: スロットが50%で通常攻撃に変わる
     case burn       // 火傷: かかったキャラの攻撃力の25%のダメージを行動ごとに受ける
-    case reverse    // 逆光: スロットが逆に回る。1→3を跨いだら必殺ターンも1下がる
+    case reverse    // 逆光: スロットが逆に回る(周回が進まず必殺が遠のく)
     case weakness   // 弱体化: 被ダメージ20%アップ
     case attackDown // 攻撃低下: 攻撃30%低下
     case speedDown  // 速度低下: 速度30%低下
@@ -191,6 +191,8 @@ struct UltimateSkill: Codable, Hashable {
     var power: Int
     /// 発動に必要なスロット周回数(必殺技の強さで決まる)
     var requiredLoops: Int
+    /// ダメージ必殺技の参照ステータスを魔力にする(魔法職用)
+    var magicBased: Bool = false
 
     /// 必殺技の強さ(威力%)に応じた必要周回数。敵味方共通ルール。
     /// 今後ダメージ以外の必殺技を実装する際は、効果の強さに応じて別途調整する

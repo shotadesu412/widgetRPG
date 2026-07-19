@@ -29,9 +29,11 @@ private func ps(_ kind: PassiveKind, _ value: Int) -> Passive {
     Passive(kind: kind, value: value)
 }
 
-private func ult(_ name: String, _ kind: UltimateKind, _ power: Int) -> UltimateSkill {
+private func ult(_ name: String, _ kind: UltimateKind, _ power: Int,
+                 magic: Bool = false) -> UltimateSkill {
     UltimateSkill(name: name, kind: kind, power: power,
-                  requiredLoops: UltimateSkill.loops(forPower: power))
+                  requiredLoops: UltimateSkill.loops(forPower: power),
+                  magicBased: magic)
 }
 
 extension JobCatalog {
@@ -69,8 +71,8 @@ extension JobCatalog {
             passive30: ps(.elementBoost, 10),
             passive60: ps(.secondLoopBoost, 12),
             passive80: ps(.statBoost, 10),
-            ultimate1: ult("マナバースト", .damageAll, 230),
-            ultimate2: ult("いかづちの極点", .damageAll, 320)),
+            ultimate1: ult("マナバースト", .damageAll, 230, magic: true),
+            ultimate2: ult("いかづちの極点", .damageAll, 320, magic: true)),
         "archer": JobKit(
             skill10: sk("連射", .attack, 65, .electric, effect: .multiHit),
             skill70: sk("狙撃", .attack, 170, .electric, effect: .crit),
@@ -167,7 +169,7 @@ extension JobCatalog {
             passive30: ps(.statBoost, 5),
             passive60: ps(.elementBoost, 8),
             passive80: ps(.statBoost, 8),
-            ultimate1: ult("禁断の実験", .damageAll, 230),
+            ultimate1: ult("禁断の実験", .damageAll, 230, magic: true),
             ultimate2: nil),
         "explorer": JobKit(
             skill10: sk("サーベル", .attack, 130, .fire),
@@ -208,7 +210,7 @@ extension JobCatalog {
             passive30: ps(.elementBoost, 10),
             passive60: ps(.statBoost, 8),
             passive80: ps(.miniBarrier, 10),
-            ultimate1: ult("審判の雷", .damageAll, 250),
+            ultimate1: ult("審判の雷", .damageAll, 250, magic: true),
             ultimate2: nil),
         "akuma": JobKit(
             skill10: sk("魔炎", .attack, 140, .dark, ailment: .burn, chance: 20),

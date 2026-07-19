@@ -249,11 +249,13 @@ extension BattleEngine {
 
     private static func action(from ultimate: UltimateSkill) -> BattleAction {
         let kind: BattleAction.Kind
+        // 魔法職の必殺技は魔力を参照する
+        let stat: DamageStat = ultimate.magicBased ? .magic : .attack
         switch ultimate.kind {
         case .damageSingle:
-            kind = .damage(pct: ultimate.power, target: .singleEnemy)
+            kind = .damage(pct: ultimate.power, target: .singleEnemy, stat: stat)
         case .damageAll, .triggerWeaponSkills:
-            kind = .damage(pct: ultimate.power, target: .allEnemies)
+            kind = .damage(pct: ultimate.power, target: .allEnemies, stat: stat)
         case .heal:
             kind = .healByMagic(pct: ultimate.power, target: .allAllies)
         case .buff, .extraActions:

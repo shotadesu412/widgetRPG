@@ -210,7 +210,7 @@ enum SkillCatalog {
             SkillEntry("aq_u1", .uncommon, "渦潮", .magic, 100, target: .random2),
             SkillEntry("aq_u2", .uncommon, "冷水", .magic, 130, ailment: .speedDown, ailmentChance: 30),
             SkillEntry("aq_r1", .rare, "大津波", .specialAttack, 140, target: .all),
-            SkillEntry("aq_r2", .rare, "命の潮", .heal, 20, target: .all, percentBased: true),
+            SkillEntry("aq_r2", .rare, "命の潮", .heal, 10, target: .all, percentBased: true),
         ],
         .bird: [
             SkillEntry("bd_c1", .common, "つつく", .attack, 100),
@@ -256,7 +256,7 @@ enum SkillCatalog {
         "bee": [SkillEntry("bee_u1", .uncommon, "毒針の一撃", .attack, 130, ailment: .poison, ailmentChance: 30)],
         "octopus": [SkillEntry("octo_u1", .uncommon, "タコヒール", .heal, 100)],
         "snake": [SkillEntry("snake_u1", .uncommon, "絞めつけ", .attack, 110, ailment: .speedDown, ailmentChance: 30)],
-        "phoenix": [SkillEntry("phx_r1", .rare, "再生の炎", .heal, 25, target: .all, percentBased: true)],
+        "phoenix": [SkillEntry("phx_r1", .rare, "再生の炎", .heal, 12, target: .all, percentBased: true)],
         "unicorn": [SkillEntry("uni_u1", .uncommon, "癒しの角", .heal, 120)],
         "medjed": [SkillEntry("mjd_r1", .rare, "メジェドの目", .attack, 180, ailment: .brainwash, ailmentChance: 40)],
     ]
