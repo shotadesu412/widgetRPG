@@ -8,6 +8,7 @@
     "palette"
   ],
   "overrides": {
-    "outline": false
+    "outline": false,
+    "bg_mode": "floodfill"
   }
 }

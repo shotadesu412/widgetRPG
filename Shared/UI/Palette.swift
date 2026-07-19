@@ -39,19 +39,39 @@ enum Palette {
     }
 }
 
+/// UIテーマの仮置き設定。
+/// ドット絵フレーム(ui_frame、枠素材サンプルから抽出)は試験導入中。
+/// false にすれば従来の角丸パネルにいつでも戻せる(アセットは残す)
+enum UITheme {
+    static let usePixelPanelFrame = true
+}
+
 /// 枠付きのパネル(共通の見た目)
 struct PanelBackground: ViewModifier {
     func body(content: Content) -> some View {
-        content
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Palette.panel)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Palette.panelBorder, lineWidth: 1)
-                    )
-            )
+        if UITheme.usePixelPanelFrame {
+            // ドット絵フレーム: 9-slice(四隅の宝石は固定、辺と内側を伸縮)
+            content
+                .padding(14)
+                .background(
+                    Image("ui_frame")
+                        .resizable(
+                            capInsets: EdgeInsets(top: 22, leading: 22, bottom: 22, trailing: 22),
+                            resizingMode: .stretch)
+                )
+        } else {
+            // 従来の角丸パネル(引き返し先)
+            content
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Palette.panel)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Palette.panelBorder, lineWidth: 1)
+                        )
+                )
+        }
     }
 }
 
