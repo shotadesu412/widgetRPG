@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -8,7 +9,7 @@ struct WidgetRootView: View {
     let entry: GameEntry
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             header
 
             Group {
@@ -21,45 +22,53 @@ struct WidgetRootView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            footerButtons
         }
+        // ヘッダに操作ボタンを寄せ、コンテンツの縦領域を最大化
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 6) {
             Text(entry.screen.label)
                 .font(.caption.bold())
                 .foregroundStyle(Palette.accent)
+            // 5画面のページインジケータ(今どの画面かが一目でわかる)
+            pageDots
             Spacer()
             // 朝昼夜と天候(TODO: WeatherKitで実際の天気を反映)
             Image(systemName: TimeOfDay.current(entry.date).symbolName)
             Image(systemName: Weather.current(entry.date).symbolName)
+            // コンパクトな操作ボタン(更新・次へ)
+            compactButton(intent: RefreshIntent(), icon: "arrow.clockwise", tint: Palette.textSecondary)
+            compactButton(intent: NextScreenIntent(), icon: "chevron.right", tint: Palette.accent)
         }
         .font(.caption2)
         .foregroundStyle(Palette.textSecondary)
     }
 
-    private var footerButtons: some View {
-        HStack(spacing: 8) {
-            Button(intent: RefreshIntent()) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.subheadline.bold())
-                    .frame(maxWidth: .infinity)
-                    .frame(height: family == .systemLarge ? 30 : 24)
+    /// 5画面のうち今どこかを示すドット
+    private var pageDots: some View {
+        HStack(spacing: 3) {
+            ForEach(WidgetScreen.allCases, id: \.self) { screen in
+                Circle()
+                    .fill(screen == entry.screen ? Palette.accent : Palette.textSecondary.opacity(0.35))
+                    .frame(width: 4, height: 4)
             }
-            .buttonStyle(.bordered)
-            .tint(Palette.textSecondary)
-
-            Button(intent: NextScreenIntent()) {
-                Image(systemName: "arrow.right")
-                    .font(.subheadline.bold())
-                    .frame(maxWidth: .infinity)
-                    .frame(height: family == .systemLarge ? 30 : 24)
-            }
-            .buttonStyle(.bordered)
-            .tint(Palette.accent)
         }
+    }
+
+    /// ヘッダに置くコンパクトな操作ボタン(アイコンのみ)
+    private func compactButton(intent: some AppIntent, icon: String, tint: Color) -> some View {
+        Button(intent: intent) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 22, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(tint.opacity(0.18))
+                )
+                .foregroundStyle(tint)
+        }
+        .buttonStyle(.plain)
     }
 }
 
