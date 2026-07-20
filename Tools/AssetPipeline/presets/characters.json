@@ -6,11 +6,11 @@
     "isolate",
     "trim",
     "resize",
-    "pixelize",
     "repair",
-    "palette",
+    "ground",
     "outline",
-    "ground"
+    "pixelize",
+    "palette"
   ],
   "overrides": {}
 }

@@ -18,7 +18,7 @@
   "alpha_threshold": 128,
   "outline": true,
   "outline_color": "#202020",
-  "outline_thickness": 1,
+  "outline_thickness": 3,
   "noise_remove": true,
   "generate_preview": true,
   "preview_scale": 4,

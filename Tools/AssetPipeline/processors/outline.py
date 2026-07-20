@@ -26,10 +26,9 @@ class Outline(Processor):
 
         t = max(1, self.config.outline_thickness)
         img = ctx.image.convert("RGBA")
-        # 余白を確保してから輪郭を打つ
-        padded = Image.new("RGBA", (img.width + t * 2, img.height + t * 2), (0, 0, 0, 0))
-        padded.paste(img, (t, t))
-        arr = np.array(padded)
+        # キャンバスサイズは変えない(接地済みの座標・Ground位置を保つ)。
+        # 接地後の中央寄せでキャラは端から離れているため、輪郭が欠けることはない
+        arr = np.array(img)
         mask = arr[:, :, 3] > 0
 
         dilated = mask.copy()
