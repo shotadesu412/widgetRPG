@@ -22,7 +22,8 @@
   "noise_remove": true,
   "generate_preview": true,
   "preview_scale": 4,
-  "palette_file": null,
+  "palette_file": "palette/common_32.json",
   "export_xcassets": null,
-  "style": "dark_fantasy"
+  "style": "dark_fantasy",
+  "repair_close": 2
 }

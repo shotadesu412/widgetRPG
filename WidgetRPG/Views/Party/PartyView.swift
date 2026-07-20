@@ -1,8 +1,13 @@
 import SwiftUI
 
-/// パーティ編成(キャラ最大3 + オトモ最大2)
+/// パーティ編成(メインキャラ1 + オトモ2)。
+/// キャラ/オトモ一覧と同じ4列カードグリッド。
+/// タップ=編成の出し入れ、長押し=詳細画面。
 struct PartyView: View {
     @EnvironmentObject private var game: GameViewModel
+    @State private var detail: PartyDetail?
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
     var body: some View {
         NavigationStack {
@@ -16,8 +21,17 @@ struct PartyView: View {
             }
             .background(Palette.background)
             .navigationTitle("パーティ")
+            .sheet(item: $detail) { d in
+                switch d {
+                case .character(let id): CharacterDetailView(characterID: id)
+                case .otomo(let id): OtomoDetailView(otomoID: id)
+                }
+            }
         }
+        .preferredColorScheme(.dark)
     }
+
+    // MARK: - 現在の編成(大きめ表示)
 
     private var currentParty: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -30,28 +44,20 @@ struct PartyView: View {
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
             } else {
-                HStack(spacing: 16) {
+                HStack(alignment: .top, spacing: 12) {
                     ForEach(game.data.partyCharacters) { chara in
-                        VStack(spacing: 4) {
-                            CharacterSpriteView(spriteKey: chara.jobID, pixelSize: 4)
-                            Text(chara.displayName)
-                                .font(.system(size: 9))
-                                .lineLimit(1)
-                        }
+                        currentMember(spriteKey: chara.jobID, name: chara.displayName,
+                                      sub: "Lv\(chara.level)", isMain: true)
                     }
                     ForEach(game.data.partyOtomos) { otomo in
-                        VStack(spacing: 4) {
-                            CharacterSpriteView(spriteKey: otomo.speciesID, pixelSize: 4)
-                            Text(otomo.displayName)
-                                .font(.system(size: 9))
-                                .lineLimit(1)
-                        }
+                        currentMember(spriteKey: otomo.speciesID, name: otomo.displayName,
+                                      sub: "Lv\(otomo.level) \(otomo.rarity.stars)", isMain: false)
                     }
                 }
                 .frame(maxWidth: .infinity)
             }
 
-            // 特殊支援キャラの効果表示
+            // 特殊支援キャラの編成効果
             let supports = game.data.partyCharacters.filter { $0.job().category == .specialSupport }
             if !supports.isEmpty {
                 Divider().background(Palette.panelBorder)
@@ -66,29 +72,49 @@ struct PartyView: View {
         .panelStyle()
     }
 
+    private func currentMember(spriteKey: String, name: String, sub: String, isMain: Bool) -> some View {
+        VStack(spacing: 4) {
+            CharacterSpriteView(spriteKey: spriteKey, pixelSize: 6, height: 96)
+                .frame(height: 96)
+            Text(name)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Palette.textPrimary)
+                .lineLimit(1)
+            Text(sub)
+                .font(.system(size: 9))
+                .foregroundStyle(Palette.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - キャラ選択(4列グリッド)
+
     private var characterPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("キャラ(最大\(AppConstants.maxPartyCharacters)人)")
                 .font(.headline)
                 .foregroundStyle(Palette.accent)
+            Text("タップで編成 / 長押しで詳細")
+                .font(.caption2)
+                .foregroundStyle(Palette.textSecondary)
 
-            ForEach(game.data.characters) { chara in
-                let inParty = game.data.partyCharacterIDs.contains(chara.id)
-                Button {
-                    game.togglePartyCharacter(chara)
-                } label: {
-                    memberRow(
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(game.data.characters) { chara in
+                    PartyCard(
+                        spriteKey: chara.jobID,
                         name: chara.displayName,
-                        detail: "Lv\(chara.level) / \(chara.job().category.label)",
-                        selected: inParty
+                        selected: game.data.partyCharacterIDs.contains(chara.id)
                     )
+                    .onTapGesture { game.togglePartyCharacter(chara) }
+                    .onLongPressGesture { detail = .character(chara.id) }
                 }
-                .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .panelStyle()
     }
+
+    // MARK: - オトモ選択(4列グリッド)
 
     private var otomoPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -101,40 +127,78 @@ struct PartyView: View {
                     .font(.caption)
                     .foregroundStyle(Palette.textSecondary)
             } else {
-                ForEach(game.data.otomos) { otomo in
-                    let inParty = game.data.partyOtomoIDs.contains(otomo.id)
-                    Button {
-                        game.togglePartyOtomo(otomo)
-                    } label: {
-                        memberRow(
+                Text("タップで編成 / 長押しで詳細")
+                    .font(.caption2)
+                    .foregroundStyle(Palette.textSecondary)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(game.data.otomos) { otomo in
+                        PartyCard(
+                            spriteKey: otomo.speciesID,
                             name: otomo.displayName,
-                            detail: "Lv\(otomo.level) / \(otomo.species().category.label)",
-                            selected: inParty
+                            rarity: otomo.rarity,
+                            selected: game.data.partyOtomoIDs.contains(otomo.id)
                         )
+                        .onTapGesture { game.togglePartyOtomo(otomo) }
+                        .onLongPressGesture { detail = .otomo(otomo.id) }
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .panelStyle()
     }
+}
 
-    private func memberRow(name: String, detail: String, selected: Bool) -> some View {
-        HStack {
-            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.textPrimary)
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(Palette.textSecondary)
-            }
-            Spacer()
+/// 編成カード(一覧のカードと同じ見た目+編成中バッジ)
+private struct PartyCard: View {
+    let spriteKey: String
+    let name: String
+    var rarity: Rarity? = nil
+    let selected: Bool
+
+    var body: some View {
+        VStack(spacing: 5) {
+            if let rarity { StarsView(rarity: rarity) }
+            CharacterSpriteView(spriteKey: spriteKey, pixelSize: 4, height: 56)
+                .frame(height: 56)
+            Text(name)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Palette.textPrimary)
+                .lineLimit(1)
         }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Palette.background))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Palette.background)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(selected ? Palette.accent : Palette.panelBorder,
+                                lineWidth: selected ? 2 : 1)
+                )
+        )
+        .overlay(alignment: .topTrailing) {
+            if selected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .heavy))
+                    .padding(4)
+                    .background(Circle().fill(Palette.accent))
+                    .foregroundStyle(Palette.background)
+                    .offset(x: 3, y: -3)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// 詳細シートの対象
+private enum PartyDetail: Identifiable {
+    case character(UUID)
+    case otomo(UUID)
+    var id: UUID {
+        switch self {
+        case .character(let id), .otomo(let id): id
+        }
     }
 }

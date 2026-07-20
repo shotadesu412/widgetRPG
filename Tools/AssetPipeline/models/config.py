@@ -40,6 +40,7 @@ class PipelineConfig:
     outline: bool = True
     outline_color: str = "#202020"
     outline_thickness: int = 1
+    repair_close: int = 0  # ドット抜け修復(モルフォロジ・クロージング)の強さ。0で無効
     noise_remove: bool = True
     generate_preview: bool = True
     preview_scale: int = 4
