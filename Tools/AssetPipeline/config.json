@@ -4,7 +4,7 @@
   "ground_y": 112,
   "safe_area": 96,
   "palette_size": 32,
-  "pixel_size": 2,
+  "pixel_size": 3,
   "transparent_background": true,
   "bg_mode": "global",
   "bg_tolerance": 42,
@@ -25,5 +25,5 @@
   "palette_file": "palette/common_32.json",
   "export_xcassets": null,
   "style": "dark_fantasy",
-  "repair_close": 2
+  "repair_close": 3
 }
