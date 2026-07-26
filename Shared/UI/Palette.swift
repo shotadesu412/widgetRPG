@@ -44,6 +44,8 @@ enum Palette {
 /// false にすれば従来の角丸パネルにいつでも戻せる(アセットは残す)
 enum UITheme {
     static let usePixelPanelFrame = true
+    /// ホームを村シーン(建物タップ式)にする。false で従来のリスト表示に戻る
+    static let useVillageHome = true
 }
 
 /// 枠付きのパネル(共通の見た目)

@@ -4,6 +4,8 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var game: GameViewModel
     @State private var showInventory = false
+    @State private var showShop = false
+    @State private var showGuild = false
     @State private var showGuerrilla = false
     @State private var showDevBattle = false
     @State private var showDevGacha = false
@@ -13,17 +15,36 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    resourceHeader
-                    // ゲリラクエスト(出現中のみ表示。タップで即ボス戦)
-                    if let quest = game.data.guerrilla, !quest.isExpired {
-                        GuerrillaSection(quest: quest) { showGuerrilla = true }
+                if UITheme.useVillageHome {
+                    // 村シーン: 建物タップで各機能へ(仮置き。フラグで旧リストに戻せる)
+                    VStack(spacing: 12) {
+                        VillageHomeView(
+                            onTapTent: { showInventory = true },
+                            onTapShop: { showShop = true },
+                            onTapGuild: { showGuild = true }
+                        )
+                        VStack(spacing: 12) {
+                            resourceHeader
+                            if let quest = game.data.guerrilla, !quest.isExpired {
+                                GuerrillaSection(quest: quest) { showGuerrilla = true }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom)
                     }
-                    ShopSection()
-                    GuildSection()
-                    inventorySummary
+                } else {
+                    VStack(spacing: 16) {
+                        resourceHeader
+                        // ゲリラクエスト(出現中のみ表示。タップで即ボス戦)
+                        if let quest = game.data.guerrilla, !quest.isExpired {
+                            GuerrillaSection(quest: quest) { showGuerrilla = true }
+                        }
+                        ShopSection()
+                        GuildSection()
+                        inventorySummary
+                    }
+                    .padding()
                 }
-                .padding()
             }
             .background(Palette.background)
             .navigationTitle("拠点")
@@ -59,6 +80,24 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showInventory) {
                 InventoryView()
+            }
+            .sheet(isPresented: $showShop) {
+                NavigationStack {
+                    ScrollView { ShopSection().padding() }
+                        .background(Palette.background)
+                        .navigationTitle("ショップ")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+                .preferredColorScheme(.dark)
+            }
+            .sheet(isPresented: $showGuild) {
+                NavigationStack {
+                    ScrollView { GuildSection().padding() }
+                        .background(Palette.background)
+                        .navigationTitle("ギルド")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+                .preferredColorScheme(.dark)
             }
             .onAppear {
                 // 開発用: DEV_INVENTORY=1 で持ち物を自動表示(スクショ確認用)
