@@ -6,7 +6,6 @@ struct HomeView: View {
     @State private var showInventory = false
     @State private var showShop = false
     @State private var showGuild = false
-    @State private var showGuerrilla = false
     @State private var showDevBattle = false
     @State private var showDevGacha = false
     @State private var showDevEgg = false
@@ -15,40 +14,35 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ZStack(alignment: .top) {
                 if UITheme.useVillageHome {
-                    // 村シーン: 建物タップで各機能へ(仮置き。フラグで旧リストに戻せる)
-                    VStack(spacing: 12) {
-                        VillageHomeView(
-                            onTapTent: { showInventory = true },
-                            onTapShop: { showShop = true },
-                            onTapGuild: { showGuild = true }
-                        )
-                        VStack(spacing: 12) {
-                            resourceHeader
-                            if let quest = game.data.guerrilla, !quest.isExpired {
-                                GuerrillaSection(quest: quest) { showGuerrilla = true }
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom)
-                    }
+                    // 村シーンを全面に敷く(メニューバー以外はすべて背景)
+                    VillageHomeView(
+                        onTapTent: { showInventory = true },
+                        onTapShop: { showShop = true },
+                        onTapGuild: { showGuild = true }
+                    )
+                    .ignoresSafeArea(edges: .top)
+
+                    // 上部に資源だけを浮かせる
+                    resourceHeader
+                        .padding(.horizontal, 12)
+                        .padding(.top, 4)
                 } else {
-                    VStack(spacing: 16) {
-                        resourceHeader
-                        // ゲリラクエスト(出現中のみ表示。タップで即ボス戦)
-                        if let quest = game.data.guerrilla, !quest.isExpired {
-                            GuerrillaSection(quest: quest) { showGuerrilla = true }
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            resourceHeader
+                            ShopSection()
+                            GuildSection()
+                            inventorySummary
                         }
-                        ShopSection()
-                        GuildSection()
-                        inventorySummary
+                        .padding()
                     }
-                    .padding()
+                    .background(Palette.background)
                 }
             }
-            .background(Palette.background)
-            .navigationTitle("拠点")
+            .navigationTitle(UITheme.useVillageHome ? "" : "拠点")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     // 開発用ツール
@@ -105,10 +99,19 @@ struct HomeView: View {
                 }
                 .preferredColorScheme(.dark)
             }
+            .sheet(isPresented: $showDevSettings) {
+                DevSettingsView()
+            }
+            .sheet(isPresented: $showDevWidget) {
+                DevWidgetPreviewView()
+            }
             .onAppear {
-                // 開発用: DEV_INVENTORY=1 で持ち物を自動表示(スクショ確認用)
+                // 開発用フック(スクショ確認用)
                 if ProcessInfo.processInfo.environment["DEV_INVENTORY"] == "1" {
                     showInventory = true
+                }
+                if ProcessInfo.processInfo.environment["DEV_WIDGET"] == "1" {
+                    showDevWidget = true
                 }
             }
             .fullScreenCover(isPresented: $showDevBattle) {
@@ -120,24 +123,6 @@ struct HomeView: View {
             }
             .fullScreenCover(isPresented: $showDevEgg) {
                 DevEggView()
-            }
-            .sheet(isPresented: $showDevSettings) {
-                DevSettingsView()
-            }
-            .sheet(isPresented: $showDevWidget) {
-                DevWidgetPreviewView()
-            }
-            .onAppear {
-                // 開発用: DEV_WIDGET=1 でウィジェット確認を自動表示
-                if ProcessInfo.processInfo.environment["DEV_WIDGET"] == "1" {
-                    showDevWidget = true
-                }
-            }
-            .fullScreenCover(isPresented: $showGuerrilla) {
-                if let quest = game.data.guerrilla {
-                    GuerrillaBattleView(quest: quest)
-                        .preferredColorScheme(.dark)
-                }
             }
         }
     }

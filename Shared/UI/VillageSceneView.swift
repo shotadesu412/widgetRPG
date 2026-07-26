@@ -1,27 +1,66 @@
 import SwiftUI
 
+/// 村シーンの並べ方。画面の縦横比で建物の配置を変える
+enum VillageLayout {
+    /// アプリのホーム(縦長・全画面)
+    case portrait
+    /// ウィジェット(横長)
+    case wide
+
+    var backgroundName: String {
+        switch self {
+        case .portrait: "village_bg_portrait"
+        case .wide: "village_bg"
+        }
+    }
+
+    /// 建物の位置(枠に対する割合)と大きさ(枠の幅に対する割合)
+    var tent: (x: CGFloat, y: CGFloat, w: CGFloat) {
+        switch self {
+        case .portrait: (0.50, 0.40, 0.46)
+        case .wide: (0.50, 0.30, 0.30)
+        }
+    }
+    var shop: (x: CGFloat, y: CGFloat, w: CGFloat) {
+        switch self {
+        case .portrait: (0.24, 0.63, 0.40)
+        case .wide: (0.20, 0.62, 0.24)
+        }
+    }
+    var guild: (x: CGFloat, y: CGFloat, w: CGFloat) {
+        switch self {
+        case .portrait: (0.77, 0.63, 0.42)
+        case .wide: (0.80, 0.62, 0.26)
+        }
+    }
+    /// 編成キャラの立ち位置
+    var party: (x: CGFloat, y: CGFloat) {
+        switch self {
+        case .portrait: (0.50, 0.855)
+        case .wide: (0.50, 0.86)
+        }
+    }
+}
+
 /// 村シーン(アプリのホームとウィジェットで共用)。
 /// 背景の上に建物を独立レイヤーで重ね、ゲームの状態で見た目が変わる:
 /// - ギルド: スカウトできる時だけ窓に人影が現れる(できない時は暗く沈む)
 /// - ショップ: 珍しい(低確率)商品の入荷中は金の輝きが出る
 ///
-/// 座標は元絵(1024×858)基準の割合で指定するので、どの大きさでも崩れない。
+/// 位置は「枠に対する割合」で決めるので、どんな大きさ・比率でも破綻しない。
 struct VillageSceneView: View {
     let data: SaveData
-    /// 編成キャラを立たせるか(小さいウィジェットでは省く)
+    var layout: VillageLayout = .portrait
+    /// 編成キャラを立たせるか
     var showsParty = true
     /// 状態バッジ(!・珍)を出すか
     var showsBadges = true
-    /// 枠を埋めて余りをクリップする(false なら全体を収める)
-    var fills = true
-    /// クリップ時に画面中央へ持ってくるシーンの縦位置(0=空, 1=手前の地面)
-    var focusY: CGFloat = 0.5
+    /// キャラの高さ(枠の高さに対する割合)
+    var partyHeightRatio: CGFloat = 0.15
     /// 建物タップの処理(ウィジェットでは nil)
     var onTapTent: (() -> Void)?
     var onTapShop: (() -> Void)?
     var onTapGuild: (() -> Void)?
-
-    static let sceneAspect: CGFloat = 1024.0 / 858.0
 
     /// ギルドでいまスカウトできるか(来訪者がいて、本日分が残っている or チケットあり)
     private var guildScoutable: Bool {
@@ -38,75 +77,73 @@ struct VillageSceneView: View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
-            // 元絵の比率を保ったまま拡縮(fills=枠を埋める / false=全体を収める)
-            let scale = fills ? max(w / 1024, h / 858) : min(w / 1024, h / 858)
-            let sw = 1024 * scale
-            let sh = 858 * scale
-            // focusY の位置が枠の中央に来るようにずらす(余白が出ない範囲に制限)
-            let rawOffset = sh / 2 - sh * focusY
-            let limit = max(0, (sh - h) / 2)
-            let offsetY = min(max(rawOffset, -limit), limit)
+            let charH = max(28, h * partyHeightRatio)
 
             ZStack {
-                Image("village_bg")
+                // 背景は枠いっぱいに敷き、はみ出しはクリップ
+                Image(layout.backgroundName)
                     .resizable()
                     .interpolation(.none)
-                    .frame(width: sw, height: sh)
+                    .scaledToFill()
+                    .frame(width: w, height: h)
+                    .clipped()
 
-                // 拠点テント(上・中央)
-                building("village_tent", width: sw * 0.42)
-                    .position(x: sw * 0.50, y: sh * 0.38)
+                // 拠点テント
+                building("village_tent", width: w * layout.tent.w)
+                    .position(x: w * layout.tent.x, y: h * layout.tent.y)
                     .modifier(TapIfAvailable(action: onTapTent))
 
-                // ショップ(左下)。珍しい入荷中は金の輝き
-                building("village_shop", width: sw * 0.32, glow: shopHasRare)
-                    .position(x: sw * 0.19, y: sh * 0.68)
+                // ショップ。珍しい入荷中は金の輝き
+                building("village_shop", width: w * layout.shop.w, glow: shopHasRare)
+                    .position(x: w * layout.shop.x, y: h * layout.shop.y)
                     .modifier(TapIfAvailable(action: onTapShop))
 
-                // ギルド(右下)。スカウトできない時は暗く沈む
+                // ギルド。スカウトできない時は暗く沈み、人影も消える
                 ZStack {
-                    building("village_guild", width: sw * 0.34, dimmed: !guildScoutable)
-                    // 人影はスカウトできる時だけ重ねる(別レイヤー)
+                    building("village_guild", width: w * layout.guild.w, dimmed: !guildScoutable)
                     if guildScoutable {
                         Image("village_guild_people")
                             .resizable()
                             .interpolation(.none)
                             .scaledToFit()
-                            .frame(width: sw * 0.34)
+                            .frame(width: w * layout.guild.w)
                     }
                 }
-                .position(x: sw * 0.81, y: sh * 0.66)
+                .position(x: w * layout.guild.x, y: h * layout.guild.y)
                 .modifier(TapIfAvailable(action: onTapGuild))
 
+                // 建物の右上角にバッジを添える(建物の実寸から位置を出す)
                 if showsBadges {
                     if shopHasRare {
+                        let bw = w * layout.shop.w
                         badge("珍", color: Palette.accent)
-                            .position(x: sw * 0.30, y: sh * 0.56)
+                            .position(x: w * layout.shop.x + bw * 0.34,
+                                      y: h * layout.shop.y - bw * 0.875 * 0.42)
                     }
                     if guildScoutable {
+                        let bw = w * layout.guild.w
                         badge("!", color: Palette.danger)
-                            .position(x: sw * 0.86, y: sh * 0.51)
+                            .position(x: w * layout.guild.x + bw * 0.34,
+                                      y: h * layout.guild.y - bw * 0.88 * 0.42)
                     }
                 }
 
-                // 編成中のメインキャラ+オトモ(道の合流点)
+                // 編成中のメインキャラ+オトモ(手前に大きく立たせる)
                 if showsParty {
-                    HStack(alignment: .bottom, spacing: sw * 0.012) {
+                    HStack(alignment: .bottom, spacing: charH * 0.12) {
                         ForEach(data.partyCharacters) { chara in
                             CharacterSpriteView(spriteKey: chara.jobID,
-                                                pixelSize: 3, height: sh * 0.10, animated: false)
+                                                pixelSize: 4, height: charH, animated: false)
                         }
                         ForEach(data.partyOtomos) { otomo in
                             CharacterSpriteView(spriteKey: otomo.speciesID,
-                                                pixelSize: 3, height: sh * 0.078, animated: false)
+                                                pixelSize: 3, height: charH * 0.78, animated: false)
                         }
                     }
-                    .position(x: sw * 0.50, y: sh * 0.81)
+                    .position(x: w * layout.party.x, y: h * layout.party.y)
                 }
             }
-            .frame(width: sw, height: sh)
-            .offset(y: offsetY)
-            .frame(width: w, height: h)   // はみ出しは外枠でクリップ
+            .frame(width: w, height: h)
             .clipped()
         }
     }

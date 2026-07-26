@@ -186,11 +186,11 @@ struct BaseScreenView: View {
         VStack(spacing: 4) {
             VillageSceneView(
                 data: entry.data,
+                layout: .wide,
                 showsParty: true,
                 showsBadges: true,
-                fills: true,
-                // 中サイズは横長なので、建物と足元が入る高さを中央に持ってくる
-                focusY: family == .systemLarge ? 0.52 : 0.60
+                // 小さい枠でもキャラが見えるように比率を上げる
+                partyHeightRatio: family == .systemLarge ? 0.20 : 0.30
             )
             .clipped()
 

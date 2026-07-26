@@ -2,9 +2,9 @@ import Foundation
 
 /// ウィジェットに表示する画面。下部の「次へ」ボタンで順に切り替える
 enum WidgetScreen: Int, CaseIterable, Codable {
+    case base     // 拠点(村シーン。ホームと同じ絵)。ウィジェットの顔なので先頭
     case egg      // 卵の様子(時間は表示せず、ひび割れやログで知らせる)
     case dungeon  // 攻略の様子(ボス捜索中/発見、取得アイテム)
-    case base     // 拠点の様子(時間限定ボスの通知)
     case shop     // ショップ(見た目のみ。詳細はアプリで)
     case status   // ステータス一覧(ギルドカード風)
 
@@ -19,7 +19,7 @@ enum WidgetScreen: Int, CaseIterable, Codable {
     }
 
     var next: WidgetScreen {
-        WidgetScreen(rawValue: (rawValue + 1) % WidgetScreen.allCases.count) ?? .egg
+        WidgetScreen(rawValue: (rawValue + 1) % WidgetScreen.allCases.count) ?? .base
     }
 }
 
@@ -32,7 +32,7 @@ enum WidgetScreenStore {
     }
 
     static var current: WidgetScreen {
-        get { WidgetScreen(rawValue: defaults.integer(forKey: key)) ?? .egg }
+        get { WidgetScreen(rawValue: defaults.integer(forKey: key)) ?? .base }
         set { defaults.set(newValue.rawValue, forKey: key) }
     }
 

@@ -51,8 +51,8 @@ struct DevWidgetPreviewView: View {
                     .font(.caption)
                     .panelStyle()
 
-                    preview("中サイズ(systemMedium)", size: mediumSize, focusY: 0.60)
-                    preview("大サイズ(systemLarge)", size: largeSize, focusY: 0.52)
+                    preview("中サイズ(systemMedium)", size: mediumSize, focusY: 0.30)
+                    preview("大サイズ(systemLarge)", size: largeSize, focusY: 0.20)
                 }
                 .padding()
             }
@@ -73,8 +73,8 @@ struct DevWidgetPreviewView: View {
             Text("\(title) \(Int(size.width))×\(Int(size.height))")
                 .font(.caption2)
                 .foregroundStyle(Palette.textSecondary)
-            VillageSceneView(data: mockData, showsParty: true, showsBadges: true,
-                             fills: true, focusY: focusY)
+            VillageSceneView(data: mockData, layout: .wide, showsParty: true,
+                             showsBadges: true, partyHeightRatio: focusY)
                 .frame(width: size.width, height: size.height)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
                 .overlay(
