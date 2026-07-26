@@ -35,7 +35,8 @@ xcrun devicectl device install app --device 00008140-0012246E3EDA801C \
 | ツール | 用途 |
 |---|---|
 | `Tools/Playtest/run.sh` | ヘッドレス自動プレイ。`CASUAL=1` で「1日4回起動するプレイヤー」を模擬 |
-| `Tools/AssetPipeline/main.py` | AI画像 → ドット絵アセット化(後述) |
+| `Tools/AssetPipeline/main.py` | AI画像 → ドット絵アセット化(後述)。`analyze --input <dir>` で既存アセットからスタイルプロファイルを解析保存 |
+| ガチャ検証(HTML) | `Tools/`外、claude.aiのアーティファクトとして別途作成済み(確率をフル編集して期待値を試せる版)。アプリ内は `DevGachaView` |
 | レンチメニュー(ホーム右上) | 戦闘バランス調整・ガチャ検証・卵検証・デバッグ設定・ウィジェット確認 |
 
 開発フック(環境変数、シミュレータは `SIMCTL_CHILD_` を付ける):
