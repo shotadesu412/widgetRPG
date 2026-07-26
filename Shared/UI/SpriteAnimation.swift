@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// キャラ絵のアニメーション状態。1状態につき画像を複数枚差し込める。
 ///
@@ -100,6 +103,7 @@ enum SpriteAssets {
 /// キャラ絵の表示ビュー(アプリ・ウィジェット共用)。
 /// 画像アセットがあれば状態に応じた絵を、無ければコード描画のドット絵を表示する。
 struct CharacterSpriteView: View {
+    @Environment(\.displayScale) private var displayScale
     let spriteKey: String
     var state: SpriteState = .idle
     /// プレースホルダのドット寸法。画像アセット時の高さの基準にもなる
@@ -133,11 +137,15 @@ struct CharacterSpriteView: View {
     }
 
     private func imageView(_ name: String) -> some View {
-        Image(name)
+        // 1ドット=整数個の画面ピクセルになる高さへ丸める(ドットのガタつき防止)
+        let source = UIImage(named: name)?.size.height ?? resolvedHeight
+        let snapped = PixelSnap.size(source: source, target: resolvedHeight,
+                                     displayScale: displayScale)
+        return Image(name)
             .interpolation(.none) // ドット絵をぼかさない
             .resizable()
             .scaledToFit()
-            .frame(height: resolvedHeight)
+            .frame(height: snapped)
     }
 
     private func frameIndex(at date: Date, count: Int) -> Int {

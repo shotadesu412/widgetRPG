@@ -102,11 +102,8 @@ struct VillageSceneView: View {
                 ZStack {
                     building("village_guild", width: w * layout.guild.w, dimmed: !guildScoutable)
                     if guildScoutable {
-                        Image("village_guild_people")
-                            .resizable()
-                            .interpolation(.none)
-                            .scaledToFit()
-                            .frame(width: w * layout.guild.w)
+                        // 人影は建物と同じ丸め方なので必ず重なる
+                        PixelArtImage(name: "village_guild_people", targetWidth: w * layout.guild.w)
                     }
                 }
                 .position(x: w * layout.guild.x, y: h * layout.guild.y)
@@ -150,11 +147,8 @@ struct VillageSceneView: View {
 
     private func building(_ name: String, width: CGFloat,
                           glow: Bool = false, dimmed: Bool = false) -> some View {
-        Image(name)
-            .resizable()
-            .interpolation(.none)
-            .scaledToFit()
-            .frame(width: width)
+        // ドットが均一になる整数倍へ丸めて表示する
+        PixelArtImage(name: name, targetWidth: width)
             .saturation(dimmed ? 0.45 : 1.0)
             .brightness(dimmed ? -0.13 : (glow ? 0.06 : 0))
             // 珍しい入荷は金色の光をまとわせて遠目でも気づけるようにする
