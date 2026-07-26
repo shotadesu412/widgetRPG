@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var showDevGacha = false
     @State private var showDevEgg = false
     @State private var showDevSettings = false
+    @State private var showDevWidget = false
 
     var body: some View {
         NavigationStack {
@@ -72,6 +73,11 @@ struct HomeView: View {
                         } label: {
                             Label("デバッグ設定(時間ゼロ等)", systemImage: "clock.badge.xmark")
                         }
+                        Button {
+                            showDevWidget = true
+                        } label: {
+                            Label("ウィジェット確認", systemImage: "rectangle.grid.1x2")
+                        }
                     } label: {
                         Image(systemName: "wrench.and.screwdriver.fill")
                     }
@@ -117,6 +123,15 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showDevSettings) {
                 DevSettingsView()
+            }
+            .sheet(isPresented: $showDevWidget) {
+                DevWidgetPreviewView()
+            }
+            .onAppear {
+                // 開発用: DEV_WIDGET=1 でウィジェット確認を自動表示
+                if ProcessInfo.processInfo.environment["DEV_WIDGET"] == "1" {
+                    showDevWidget = true
+                }
             }
             .fullScreenCover(isPresented: $showGuerrilla) {
                 if let quest = game.data.guerrilla {

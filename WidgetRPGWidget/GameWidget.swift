@@ -51,5 +51,7 @@ struct GameWidget: Widget {
         .configurationDisplayName("ウィジェットRPG")
         .description("ホーム画面で冒険を見守る。卵・攻略・拠点・ショップ・ステータスを切り替え表示。")
         .supportedFamilies([.systemMedium, .systemLarge])
+        // 村シーンを縁まで見せる(内側の余白は各画面で付ける)
+        .contentMarginsDisabled()
     }
 }

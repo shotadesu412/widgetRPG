@@ -11,17 +11,21 @@ struct WidgetRootView: View {
     var body: some View {
         VStack(spacing: 4) {
             header
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
 
             Group {
                 switch entry.screen {
                 case .egg: EggScreenView(entry: entry)
                 case .dungeon: DungeonScreenView(entry: entry)
-                case .base: BaseScreenView(entry: entry)
+                case .base: BaseScreenView(entry: entry)   // 拠点だけ全面表示
                 case .shop: ShopScreenView(entry: entry)
                 case .status: StatusScreenView(entry: entry)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, entry.screen == .base ? 0 : 12)
+            .padding(.bottom, entry.screen == .base ? 0 : 10)
         }
         // ヘッダに操作ボタンを寄せ、コンテンツの縦領域を最大化
     }
@@ -173,21 +177,49 @@ struct DungeonScreenView: View {
 // MARK: - 拠点の様子(時間限定ボスの通知)
 
 struct BaseScreenView: View {
+    @Environment(\.widgetFamily) private var family
     let entry: GameEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                ForEach(entry.data.partyCharacters.prefix(3)) { chara in
-                    CharacterSpriteView(spriteKey: chara.jobID, pixelSize: 3, animated: false)
-                }
-                Spacer()
+        // 村シーン(アプリのホームと共用)。ギルドの人影・ショップの輝きで
+        // 「スカウトできる」「珍しい入荷がある」が一目でわかる
+        VStack(spacing: 4) {
+            VillageSceneView(
+                data: entry.data,
+                showsParty: true,
+                showsBadges: true,
+                fills: true,
+                // 中サイズは横長なので、建物と足元が入る高さを中央に持ってくる
+                focusY: family == .systemLarge ? 0.52 : 0.60
+            )
+            .clipped()
+
+            if family == .systemLarge {
+                statusLine
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
             }
-            // TODO: 時間限定ボス・ゲリライベントの通知をここに出す
-            Text("拠点は静かだ……時間限定ボスの気配はない")
-                .font(.caption2)
+        }
+    }
+
+    /// 大サイズだけ状態を1行で補足する
+    private var statusLine: some View {
+        HStack(spacing: 10) {
+            if entry.data.shop.items.contains(where: { $0.tier == .lowChance }) {
+                Label("珍しい入荷", systemImage: "sparkles")
+                    .foregroundStyle(Palette.accent)
+            }
+            if !entry.data.guild.visitors.isEmpty
+                && (!entry.data.guild.scoutedToday || entry.data.guildTickets > 0) {
+                Label("スカウト可", systemImage: "person.fill.badge.plus")
+                    .foregroundStyle(Palette.danger)
+            }
+            Spacer()
+            Label("\(entry.data.coins)", systemImage: "circle.circle.fill")
                 .foregroundStyle(Palette.textSecondary)
         }
+        .font(.system(size: 10, weight: .bold))
+        .lineLimit(1)
     }
 }
 
