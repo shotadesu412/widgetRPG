@@ -27,7 +27,7 @@ enum WidgetScreen: Int, CaseIterable, Codable {
 enum WidgetScreenStore {
     private static let key = "widgetScreen"
     /// 画面の並び順を変えた回数。増やすと保存済みの選択を先頭(村)に戻す
-    private static let orderVersion = 2
+    private static let orderVersion = 3
     private static let versionKey = "widgetScreenOrderVersion"
 
     private static var defaults: UserDefaults {

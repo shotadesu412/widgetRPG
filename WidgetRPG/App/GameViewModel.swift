@@ -13,6 +13,9 @@ final class GameViewModel: ObservableObject {
         loaded.partyCharacterIDs = Array(loaded.partyCharacterIDs.prefix(AppConstants.maxPartyCharacters))
         loaded.partyOtomoIDs = Array(loaded.partyOtomoIDs.prefix(AppConstants.maxPartyOtomos))
         data = loaded
+        // ウィジェットは村(拠点)を顔にするので、アプリ起動時はそこへ戻して更新する
+        WidgetScreenStore.current = .base
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     func save() {

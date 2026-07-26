@@ -7,10 +7,16 @@ enum VillageLayout {
     /// ウィジェット(横長)
     case wide
 
-    var backgroundName: String {
+    /// 背景はホームもウィジェットも同じ絵を使う
+    var backgroundName: String { "village_bg_portrait" }
+
+    /// 枠に対して背景のどこを見せるか。
+    /// 横長で潰れた枠(中サイズのウィジェット)は地面側だけを見せ、
+    /// ある程度の高さがあれば空も入れる
+    func backgroundAlignment(width: CGFloat, height: CGFloat) -> Alignment {
         switch self {
-        case .portrait: "village_bg_portrait"
-        case .wide: "village_bg"
+        case .portrait: .center
+        case .wide: height / max(1, width) < 0.7 ? .bottom : .center
         }
     }
 
@@ -84,8 +90,9 @@ struct VillageSceneView: View {
                 Image(layout.backgroundName)
                     .resizable()
                     .interpolation(.none)
-                    .scaledToFill()
-                    .frame(width: w, height: h)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: w, height: h,
+                           alignment: layout.backgroundAlignment(width: w, height: h))
                     .clipped()
 
                 // 拠点テント
