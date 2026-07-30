@@ -138,7 +138,12 @@ struct CharacterSpriteView: View {
 
     private func imageView(_ name: String) -> some View {
         // 1ドット=整数個の画面ピクセルになる高さへ丸める(ドットのガタつき防止)
+        #if canImport(UIKit)
         let source = UIImage(named: name)?.size.height ?? resolvedHeight
+        #else
+        // ヘッドレス(Tools/Playtest)では画像を読めないので目安の高さをそのまま使う
+        let source = resolvedHeight
+        #endif
         let snapped = PixelSnap.size(source: source, target: resolvedHeight,
                                      displayScale: displayScale)
         return Image(name)

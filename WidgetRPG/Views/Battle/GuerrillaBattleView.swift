@@ -37,6 +37,13 @@ struct GuerrillaBattleView: View {
             engine.allies = fresh.allies
             engine.enemies = fresh.enemies
             engine.log = fresh.log
+            // スロットマシンのルーレットで得たコインは即座にセーブへ加算する
+            engine.onGoldEarned = { amount in
+                game.data.coins += amount
+                game.save()
+            }
+            // 開戦時パッシブ(悪魔の魔力吸収・スロットマシンの初回抽選・ゾンビの復活設定)
+            engine.applyBattleStart()
         }
     }
 }

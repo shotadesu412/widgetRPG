@@ -56,6 +56,30 @@ struct BattleAction: Hashable {
         case offeringSelect(mul: Double)
         /// サクリファイス: 記憶した味方を戦闘不能にし、その全ステータスの一定%を自分に加算
         case sacrifice(gainPct: Int)
+
+        // MARK: 特殊キャラ用
+
+        /// 術者の攻撃力×pct% を回復(獣使いの回復・ゾンビの再生)
+        case healByAttack(pct: Int, target: ActionTarget)
+        /// 大当たり付き攻撃: 通常は basePct、chance% で bigPct に跳ねる(セブンスラッシュ)
+        case jackpot(basePct: Int, bigPct: Int, chance: Int)
+        /// 身代わり: turns ターンのあいだ単体攻撃を自分に集め、味方の全体攻撃を aoeReductionPct% 軽減
+        case taunt(turns: Int, aoeReductionPct: Int)
+        /// 鼓舞: 味方全体の攻撃を turns ターン buffPct% 上げ、ランダムな敵1体に attackPct% の攻撃
+        case rally(buffPct: Int, turns: Int, attackPct: Int)
+        /// 行動停止を付与(タイムキーパー)。chance=付与確率(%)
+        case stun(turns: Int, target: ActionTarget, chance: Int)
+        /// ランダムな味方のスロットを count 個進める(スキップ)
+        case advanceAllySlot(count: Int)
+        /// 遅延ダメージ: 対象の次の行動時に pct% のダメージが発生する(ディレイ)
+        case delayedDamage(pct: Int, target: ActionTarget)
+        /// 状態異常のみを付与する(逆光・ウイルス)
+        case inflictAilment(Ailment, chance: Int, target: ActionTarget)
+        /// 味方全体に「戦闘不能時にミニゾンビを召喚する」バフを付与(死者の宴)
+        case grantDeathSpawn
+        /// 場にいるオトモのスロット技をランダムに times 回発動する(群れの咆哮)
+        case triggerOtomoSkills(times: Int)
+
         /// 空きスロット=通常攻撃(攻撃力100%単体)
         case normalAttack
     }
@@ -82,6 +106,12 @@ enum BattlePassive: Hashable {
     case evenLoopAttack(mul: Double)                 // 偶数巡目の攻撃を強化
     case lowHPRegen(thresholdPct: Int, amount: Int)  // HPが閾値以下で毎行動回復
     case drainAlliesMagic(pct: Int)                  // 戦闘開始時、味方の魔力を0にして合計の一定%を自分に加算
+    /// スロットマシン: 開戦時とスロット一巡ごとに4種の効果から1つをランダムに発動
+    case slotMachineRoulette
+    /// タイムキーパー: 自分の行動ごとに、敵全体へ確率で行動停止(自分の次の行動まで)
+    case stunAura(chance: Int)
+    /// ゾンビ: 戦闘不能のたびに確率で復活。復活のたびに復活時HPが decayPct ポイントずつ下がる
+    case undying(chance: Int, hpPct: Int, decayPct: Int)
 
     /// 簡易詳細のパッシブ効果一覧に表示する説明
     var label: String {
@@ -92,8 +122,22 @@ enum BattlePassive: Hashable {
             "HP\(threshold)%以下で毎行動\(amount)回復"
         case .drainAlliesMagic(let pct):
             "開戦時に味方の魔力の\(pct)%を吸収"
+        case .slotMachineRoulette:
+            "開戦時と一巡ごとにランダムな効果"
+        case .stunAura(let chance):
+            "毎行動、敵全体に\(chance)%で行動停止"
+        case .undying(let chance, let hpPct, let decayPct):
+            "戦闘不能時\(chance)%でHP\(hpPct)%復活(毎回-\(decayPct)%)"
         }
     }
+}
+
+/// 遅延ダメージ(ディレイ)。対象が次に行動するときに発生する
+struct PendingDamage: Hashable {
+    var sourceName: String
+    var label: String
+    var amount: Int
+    var element: Element
 }
 
 /// 一時的なステータス補正
@@ -176,6 +220,28 @@ final class BattleEngine: ObservableObject {
         var transientState: SpriteState?
         var stateTimer: Double = 0
 
+        // MARK: 特殊キャラ用の状態
+
+        /// オトモかどうか(獣使いのパッシブ・必殺技の対象判定に使う)
+        var isOtomo = false
+        /// 召喚ユニット(ミニゾンビ等)。全滅判定からは除外しない
+        var isSummon = false
+        /// 行動停止の残りターン。1以上なら行動を飛ばして1減らす
+        var stunTurns = 0
+        /// 身代わりの残りターン。1以上なら敵の単体攻撃をこのユニットに集める
+        var tauntTurns = 0
+        /// 身代わり中に味方が受ける全体攻撃の軽減率(%)
+        var tauntAoEReductionPct = 0
+        /// 追撃状態: 次の抽選まで、攻撃時に攻撃力の followUpPct% の追撃が発生する
+        var followUpPct = 0
+        /// 復活時のHP割合(%)。0なら復活しない。復活のたびに undying の decayPct ぶん下がる
+        var reviveHPPct = 0
+        var reviveDecayPct = 0
+        /// 戦闘不能時にミニゾンビを召喚する(死者の宴のバフ)
+        var spawnMiniOnDeath = false
+        /// 次の行動時に受ける遅延ダメージ(ディレイ)
+        var pendingDamage: [PendingDamage] = []
+
         /// UI互換用(毒表示)
         var poisoned: Bool { ailments.contains(.poison) }
         var hasAilment: Bool { !ailments.isEmpty }
@@ -224,6 +290,11 @@ final class BattleEngine: ObservableObject {
     @Published var enemies: [Unit] = []
     @Published var log: [String] = []
     @Published var result: BattleResult?
+    /// 戦闘中に獲得したコイン(スロットマシンのルーレット)。
+    /// 加算のたびに onGoldEarned が呼ばれ、画面側が即座にセーブへ反映する
+    @Published private(set) var goldEarned = 0
+    /// コイン獲得時のコールバック(セーブへの加算は画面側の責務)
+    var onGoldEarned: ((Int) -> Void)?
 
     /// 行動後の待ち時間(この間はゲージが止まる)
     private var actionPause: Double = 0
@@ -234,7 +305,8 @@ final class BattleEngine: ObservableObject {
     func applyBattleStart() {
         for i in allies.indices {
             for passive in allies[i].passives {
-                if case let .drainAlliesMagic(pct) = passive {
+                switch passive {
+                case let .drainAlliesMagic(pct):
                     var total = 0
                     for j in allies.indices where j != i {
                         total += allies[j].magic
@@ -243,8 +315,52 @@ final class BattleEngine: ObservableObject {
                     let gain = total * pct / 100
                     allies[i].magic += gain
                     appendLog("\(allies[i].name)の儀式! 味方の魔力を吸収した(魔力+\(gain))")
+                case let .undying(_, hpPct, decayPct):
+                    // ゾンビ: 復活時HPの初期値と減衰量を設定する
+                    allies[i].reviveHPPct = hpPct
+                    allies[i].reviveDecayPct = decayPct
+                case .slotMachineRoulette:
+                    break // 抽選は下でまとめて行う(ログ順を開戦メッセージの後にするため)
+                default:
+                    break
                 }
             }
+        }
+        // スロットマシン: 開戦時にも1回抽選する
+        for unit in allies + enemies where unit.passives.contains(.slotMachineRoulette) {
+            spinRoulette(for: unit.id)
+        }
+    }
+
+    // MARK: - スロットマシンのルーレット
+
+    /// スロットマシンのパッシブ。開戦時とスロット一巡ごとに4種から1つ発動する
+    private func spinRoulette(for unitID: UUID) {
+        guard var unit = findUnit(id: unitID), unit.isAlive else { return }
+        unit.followUpPct = 0 // 追撃は「次の抽選まで」なので、抽選のたびに一度切る
+        switch Int.random(in: 0..<4) {
+        case 0:
+            unit.modifiers.append(StatModifier(stat: .attack, mul: 1.30, expiry: .permanent))
+            appendLog("\(unit.name)のルーレット! 攻撃力が30%上がった")
+            updateUnit(unit)
+        case 1:
+            appendLog("\(unit.name)のルーレット! 味方全員の防御が25%上がった")
+            updateUnit(unit)
+            for id in resolveTargets(.allAllies, from: unit) {
+                addModifier(StatModifier(stat: .defense, mul: 1.25, expiry: .permanent), to: id)
+            }
+        case 2:
+            // 次の抽選(=次の一巡)まで、攻撃に攻撃力50%の追撃が乗る
+            unit.followUpPct = 50
+            appendLog("\(unit.name)のルーレット! 攻撃に追撃が付いた")
+            updateUnit(unit)
+        default:
+            // 獲得量は攻撃力に比例(レベル帯に追従させるため)
+            let gain = max(10, unit.attack * 2)
+            goldEarned += gain
+            onGoldEarned?(gain)
+            appendLog("\(unit.name)のルーレット! コインを\(gain)獲得した")
+            updateUnit(unit)
         }
     }
 
@@ -315,6 +431,36 @@ final class BattleEngine: ObservableObject {
         guard result == nil, var unit = findUnit(id: unitID), unit.isAlive else { return }
         unit.gauge = 0
 
+        // 0. 遅延ダメージ(ディレイ): この行動の頭で受ける
+        if !unit.pendingDamage.isEmpty {
+            let pending = unit.pendingDamage
+            unit.pendingDamage = []
+            for hit in pending {
+                let defense = unit.isAlly ? unit.effectiveDefense : 0
+                let raw = Double(hit.amount) * 250.0 / (250.0 + Double(defense))
+                let damage = max(1, Int(raw * hit.element.multiplier(against: unit.element)))
+                unit.hp = max(0, unit.hp - damage)
+                unit.floating = FloatingNumber(value: damage, kind: .damage)
+                appendLog("\(hit.sourceName)の\(hit.label)が炸裂! \(unit.name)に\(damage)ダメージ")
+                if !unit.isAlive { break }
+            }
+            if !unit.isAlive {
+                handleDeath(&unit)
+                updateUnit(unit)
+                checkEnd()
+                return
+            }
+        }
+
+        // 0-2. 行動停止(タイムキーパー): ターンを消費して何もしない
+        if unit.stunTurns > 0 {
+            unit.stunTurns -= 1
+            decrementTauntTurns(on: &unit)
+            appendLog("\(unit.name)は動けない!")
+            updateUnit(unit)
+            return
+        }
+
         // 1. 行動開始時の継続ダメージ(毒: 現在HPの5% / 火傷: 自分の攻撃力の25%)
         if unit.ailments.contains(.poison) {
             let dmg = max(1, Int(Double(unit.hp) * 0.05))
@@ -348,6 +494,20 @@ final class BattleEngine: ObservableObject {
         // 3. 「付与者の次行動まで」の補正を解除(自分が付与した分)、ターン制の補正を1減らす
         clearOwnerModifiers(ownerID: unit.id)
         decrementTurnModifiers(on: &unit)
+        decrementTauntTurns(on: &unit)
+
+        // 3-2. タイムキーパーのパッシブ: 敵全体に確率で行動停止(自分の次の行動まで)
+        for passive in unit.passives {
+            if case let .stunAura(chance) = passive {
+                for foe in (unit.isAlly ? enemies : allies).filter(\.isAlive)
+                where Int.random(in: 0..<100) < chance {
+                    guard var t = findUnit(id: foe.id) else { continue }
+                    t.stunTurns = max(t.stunTurns, 1)
+                    updateUnit(t)
+                    appendLog("\(unit.name)の時間干渉! \(t.name)の動きが止まった")
+                }
+            }
+        }
 
         // 4. 行動本体。足元にスキル名を出す
         if unit.ultimateReady, let ultimate = unit.ultimate {
@@ -407,7 +567,8 @@ final class BattleEngine: ObservableObject {
         checkEnd()
     }
 
-    /// スロットの進行。逆光中は逆回りする(周回は進まないが必殺ターンは減らない)
+    /// スロットの進行。逆光中は逆回りする(周回は進まないが必殺ターンは減らない)。
+    /// 一巡したユニットがスロットマシンのパッシブを持つ場合はルーレットを回す
     private func advanceSlot(on unit: inout Unit) {
         guard !unit.slots.isEmpty else { return }
         if unit.ailments.contains(.reverse) {
@@ -420,7 +581,24 @@ final class BattleEngine: ObservableObject {
             if unit.slotIndex >= unit.slots.count {
                 unit.slotIndex = 0
                 unit.loops += 1
+                if unit.passives.contains(.slotMachineRoulette) {
+                    // ルーレットは自分の状態を書き換えるので、
+                    // 先に現在の unit を反映してから回し、結果を読み戻す
+                    updateUnit(unit)
+                    spinRoulette(for: unit.id)
+                    if let refreshed = findUnit(id: unit.id) { unit = refreshed }
+                }
             }
+        }
+    }
+
+    /// 身代わりの残りターンを減らす(自分の行動を1ターンと数える)
+    private func decrementTauntTurns(on unit: inout Unit) {
+        guard unit.tauntTurns > 0 else { return }
+        unit.tauntTurns -= 1
+        if unit.tauntTurns == 0 {
+            unit.tauntAoEReductionPct = 0
+            appendLog("\(unit.name)の身代わりが解けた")
         }
     }
 
@@ -552,7 +730,165 @@ final class BattleEngine: ObservableObject {
             performOffering(from: &unit, mul: mul, label: action.name)
         case let .sacrifice(gainPct):
             performSacrifice(from: &unit, gainPct: gainPct, label: action.name)
+
+        // MARK: 特殊キャラ
+
+        case let .healByAttack(pct, target):
+            let amount = max(1, effectiveAttack(of: unit) * pct / 100)
+            let ids = resolveTargets(target, from: unit)
+            for id in ids {
+                if id == unit.id {
+                    let before = unit.hp
+                    unit.hp = min(unit.maxHP, unit.hp + amount)
+                    if unit.hp - before > 0 {
+                        unit.floating = FloatingNumber(value: unit.hp - before, kind: .heal)
+                    }
+                } else {
+                    heal(id: id, amount: amount)
+                }
+            }
+            appendLog("\(unit.name)の\(action.name)! HPを\(amount)回復")
+
+        case let .jackpot(basePct, bigPct, chance):
+            let hit = Int.random(in: 0..<100) < chance
+            if hit { appendLog("\(unit.name)の\(action.name)……大当たり!!") }
+            dealToTargets(from: &unit, pct: hit ? bigPct : basePct, target: .singleEnemy,
+                          stat: .attack, critChance: 0, hits: 1...1,
+                          inflict: nil, inflictChance: 0, drainPct: 0,
+                          bonusVsAilment: false, label: action.name)
+
+        case let .taunt(turns, aoeReductionPct):
+            unit.tauntTurns = turns
+            unit.tauntAoEReductionPct = aoeReductionPct
+            appendLog("\(unit.name)の\(action.name)! 攻撃を引き受ける")
+
+        case let .rally(buffPct, turns, attackPct):
+            for id in resolveTargets(.allAllies, from: unit) {
+                addModifier(StatModifier(stat: .attack, mul: 1.0 + Double(buffPct) / 100,
+                                         expiry: .turns(turns), turnsLeft: turns), to: id)
+            }
+            appendLog("\(unit.name)の\(action.name)! 味方全員の攻撃が\(buffPct)%上がった")
+            dealToTargets(from: &unit, pct: attackPct, target: .singleEnemy,
+                          stat: .attack, critChance: 0, hits: 1...1,
+                          inflict: nil, inflictChance: 0, drainPct: 0,
+                          bonusVsAilment: false, label: action.name)
+
+        case let .stun(turns, target, chance):
+            var stunned: [String] = []
+            for id in resolveTargets(target, from: unit) where Int.random(in: 0..<100) < chance {
+                guard var t = findUnit(id: id) else { continue }
+                t.stunTurns = max(t.stunTurns, turns)
+                updateUnit(t)
+                stunned.append(t.name)
+            }
+            appendLog(stunned.isEmpty
+                      ? "\(unit.name)の\(action.name)! だが効かなかった"
+                      : "\(unit.name)の\(action.name)! \(stunned.joined(separator: "・"))の時が止まった")
+
+        case let .advanceAllySlot(count):
+            // 自分以外の味方を優先(自分しかいなければ自分を進める)
+            let friends = (unit.isAlly ? allies : enemies)
+                .filter { $0.isAlive && !$0.slots.isEmpty }
+            let others = friends.filter { $0.id != unit.id }
+            guard var target = (others.isEmpty ? friends : others).randomElement() else {
+                appendLog("\(unit.name)の\(action.name)! だが対象がいない")
+                break
+            }
+            let isSelf = target.id == unit.id
+            for _ in 0..<count { advanceSlot(on: &target) }
+            if isSelf {
+                // 自分を進めた場合は、呼び出し元が持つ unit 側に反映する
+                unit.slotIndex = target.slotIndex
+                unit.loops = target.loops
+            } else {
+                updateUnit(target)
+            }
+            appendLog("\(unit.name)の\(action.name)! \(target.name)のスロットが進んだ")
+
+        case let .delayedDamage(pct, target):
+            let amount = max(1, effectiveAttack(of: unit) * pct / 100)
+            for id in resolveTargets(target, from: unit) {
+                guard var t = findUnit(id: id) else { continue }
+                t.pendingDamage.append(PendingDamage(sourceName: unit.name, label: action.name,
+                                                     amount: amount, element: unit.element))
+                updateUnit(t)
+                appendLog("\(unit.name)の\(action.name)! \(t.name)に時限の一撃を仕掛けた")
+            }
+
+        case let .inflictAilment(ailment, chance, target):
+            var affected: [String] = []
+            for id in resolveTargets(target, from: unit) {
+                guard var t = findUnit(id: id), t.isAlive, !t.ailments.contains(ailment),
+                      Int.random(in: 0..<100) < chance else { continue }
+                if let guardPassive = t.gamePassives.first(where: { $0.kind == .ailmentGuard }),
+                   Int.random(in: 0..<100) < guardPassive.value {
+                    appendLog("\(t.name)は\(ailment.label)を耐性で防いだ")
+                    continue
+                }
+                t.ailments.insert(ailment)
+                updateUnit(t)
+                affected.append(t.name)
+            }
+            appendLog(affected.isEmpty
+                      ? "\(unit.name)の\(action.name)! だが効かなかった"
+                      : "\(unit.name)の\(action.name)! \(affected.joined(separator: "・"))は\(ailment.label)状態になった!")
+
+        case .grantDeathSpawn:
+            for id in resolveTargets(.allAllies, from: unit) {
+                guard var t = findUnit(id: id) else { continue }
+                t.spawnMiniOnDeath = true
+                updateUnit(t)
+            }
+            appendLog("\(unit.name)の\(action.name)! 味方が倒れると死者が起き上がる")
+
+        case let .triggerOtomoSkills(times):
+            performOtomoSkills(from: &unit, times: times, label: action.name)
         }
+    }
+
+    // MARK: - 獣使い / ゾンビの固有処理
+
+    /// 群れの咆哮: 場にいるオトモのスロット技をランダムに times 回発動する。
+    /// 発動役はオトモ本人(ステータスもオトモのものを使う)
+    private func performOtomoSkills(from unit: inout Unit, times: Int, label: String) {
+        let otomos = (unit.isAlly ? allies : enemies).filter { $0.isAlive && $0.isOtomo }
+        guard !otomos.isEmpty else {
+            appendLog("\(unit.name)の\(label)! だがオトモがいない")
+            return
+        }
+        appendLog("\(unit.name)の\(label)!")
+        for _ in 0..<times {
+            guard let picked = otomos.randomElement(),
+                  var actor = findUnit(id: picked.id), actor.isAlive,
+                  !actor.slots.isEmpty else { continue }
+            let skill = actor.slots.randomElement() ?? .normal
+            actor.slotDamageMul = 1.0
+            setActionLabel(skill.name, on: &actor)
+            setTransientState(skill.spriteState, on: &actor)
+            perform(skill, by: &actor)
+            updateUnit(actor)
+            if result != nil { return }
+        }
+    }
+
+    /// ミニゾンビを召喚する(元になったユニットのステータスの60%)
+    private func summonMiniZombie(from origin: Unit) {
+        let pct = 60
+        var mini = Unit(
+            name: "ミニゾンビ", isAlly: origin.isAlly, element: .dark,
+            maxHP: max(1, origin.maxHP * pct / 100), hp: max(1, origin.maxHP * pct / 100),
+            attack: max(1, origin.attack * pct / 100),
+            defense: max(0, origin.defense * pct / 100),
+            speed: max(1, origin.speed * pct / 100),
+            magic: max(0, origin.magic * pct / 100),
+            slots: Array(repeating: BattleAction(
+                name: "ゾンビアタック",
+                kind: .damage(pct: 120, target: .singleEnemy, inflict: .poison, inflictChance: 40)),
+                count: 3),
+            spriteKey: "zombie")
+        mini.isSummon = true
+        if origin.isAlly { allies.append(mini) } else { enemies.append(mini) }
+        appendLog("\(origin.name)の亡骸から\(mini.name)が起き上がった!")
     }
 
     private func dealToTargets(from unit: inout Unit, pct: Int, target: ActionTarget,
@@ -587,6 +923,7 @@ final class BattleEngine: ObservableObject {
         value = max(1, Int(Double(value) * passiveMul))
         // ヒット回数(双剣・リボルバー等)。ランダム対象は毎ヒット抽選し直す
         let hitCount = Int.random(in: hits)
+        let isAreaAttack = target == .allEnemies
         var totalDealt = 0
         for _ in 0..<hitCount {
             let targets = resolveTargets(target, from: unit)
@@ -596,7 +933,18 @@ final class BattleEngine: ObservableObject {
                     fromName: unit.name, attackStat: value, pct: pct,
                     element: unit.element, to: id, critChance: critChance,
                     inflict: inflict, inflictChance: inflictChance,
-                    flatBonus: flatBonus, bonusVsAilment: bonusVsAilment, label: label)
+                    flatBonus: flatBonus, bonusVsAilment: bonusVsAilment,
+                    isAreaAttack: isAreaAttack, label: label)
+            }
+        }
+        // 追撃(スロットマシンのルーレット): 攻撃のあとに攻撃力の一定%を単体へ追加
+        if unit.followUpPct > 0, totalDealt > 0, unit.isAlive {
+            let followUpValue = max(1, Int(Double(effectiveAttack(of: unit)) * passiveMul))
+            for id in resolveTargets(.singleEnemy, from: unit) {
+                totalDealt += dealDamage(
+                    fromName: unit.name, attackStat: followUpValue, pct: unit.followUpPct,
+                    element: unit.element, to: id, critChance: 0,
+                    inflict: nil, inflictChance: 0, label: "追撃")
             }
         }
         // 吸血: 与えた合計ダメージの一部を自己回復
@@ -707,6 +1055,7 @@ final class BattleEngine: ObservableObject {
                             to targetID: UUID, critChance: Int,
                             inflict: Ailment?, inflictChance: Int,
                             flatBonus: Int = 0, bonusVsAilment: Bool = false,
+                            isAreaAttack: Bool = false,
                             label: String) -> Int {
         guard var target = findUnit(id: targetID), target.isAlive else { return 0 }
         // 敵は防御ステータスを持たない(味方のみ防御でダメージ軽減)。
@@ -722,6 +1071,15 @@ final class BattleEngine: ObservableObject {
         if bonusVsAilment, !target.ailments.isEmpty { damage = Int(Double(damage) * 1.3) }
         // 弱体化: 被ダメージ20%アップ
         if target.ailments.contains(.weakness) { damage = Int(Double(damage) * 1.2) }
+        // 身代わり(獣使い): 味方に挑発中のユニットがいると全体攻撃を軽減する。
+        // 挑発者本人は単体攻撃を集める役なので軽減の対象外
+        if isAreaAttack, target.tauntTurns == 0 {
+            let friends = target.isAlly ? allies : enemies
+            if let reduction = friends.filter({ $0.isAlive && $0.tauntTurns > 0 })
+                .map(\.tauntAoEReductionPct).max(), reduction > 0 {
+                damage = max(1, Int(Double(damage) * (1.0 - Double(reduction) / 100)))
+            }
+        }
         // 固定ダメージ追加パッシブ(ヒットごと)
         damage += flatBonus
         // バリア(プチバリア等)が先にダメージを肩代わりする
@@ -755,13 +1113,30 @@ final class BattleEngine: ObservableObject {
     }
 
     private func handleDeath(_ target: inout Unit) {
+        // ゾンビの不死パッシブ: 復活のたびに復活時HPが減っていく(いずれ復活しなくなる)
+        if let undying = target.passives.first(where: {
+            if case .undying = $0 { return true } else { return false }
+        }), case let .undying(chance, _, _) = undying,
+           target.reviveHPPct > 0, Int.random(in: 0..<100) < chance {
+            target.hp = max(1, target.maxHP * target.reviveHPPct / 100)
+            target.reviveHPPct = max(0, target.reviveHPPct - target.reviveDecayPct)
+            target.ailments = []
+            target.stunTurns = 0
+            appendLog("\(target.name)は倒れたが……再び起き上がった!!")
+            return
+        }
         if target.reviveChance > 0, Int.random(in: 0..<100) < target.reviveChance {
             target.hp = target.maxHP / 3
             target.reviveChance = 0
             target.ailments = []
             appendLog("\(target.name)は倒れたが……蘇った!!")
-        } else {
-            appendLog("\(target.name)を倒した!")
+            return
+        }
+        appendLog("\(target.name)を倒した!")
+        // 死者の宴のバフ: 倒れたユニットからミニゾンビが起き上がる(召喚は連鎖しない)
+        if target.spawnMiniOnDeath, !target.isSummon {
+            target.spawnMiniOnDeath = false
+            summonMiniZombie(from: target)
         }
     }
 
@@ -781,6 +1156,10 @@ final class BattleEngine: ObservableObject {
         let friends = (unit.isAlly ? allies : enemies).filter(\.isAlive)
         switch target {
         case .singleEnemy:
+            // 身代わり(獣使い): 単体攻撃は挑発中のユニットに吸われる
+            if let taunter = foes.first(where: { $0.tauntTurns > 0 }) {
+                return [taunter.id]
+            }
             return foes.randomElement().map { [$0.id] } ?? []
         case .allEnemies:
             return foes.map(\.id)

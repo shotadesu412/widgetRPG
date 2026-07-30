@@ -11,23 +11,32 @@ extension BattleEngine {
         for chara in data.partyCharacters {
             let stats = data.effectiveStats(of: chara)
             let job = chara.job()
-            var slots: [BattleAction] = (0..<job.slotCount).map { index in
-                let placed = chara.placedSkills.indices.contains(index) ? chara.placedSkills[index] : nil
-                return placed.map(action(from:)) ?? .normal
-            }
-            if let weapon = data.weapon(id: chara.weaponID) {
-                for (pos, skill) in weapon.skillPositions where pos < slots.count {
-                    slots[pos] = action(from: skill)
+            // 特殊キャラは固有キット(戦闘アクション直書き)を使い、
+            // 配置スキル・武器スキルによる上書きを受けない
+            let special = SpecialJobKits.kit(for: chara.jobID)
+            var slots: [BattleAction]
+            if let special {
+                slots = special.slots
+            } else {
+                slots = (0..<job.slotCount).map { index in
+                    let placed = chara.placedSkills.indices.contains(index) ? chara.placedSkills[index] : nil
+                    return placed.map(action(from:)) ?? .normal
+                }
+                if let weapon = data.weapon(id: chara.weaponID) {
+                    for (pos, skill) in weapon.skillPositions where pos < slots.count {
+                        slots[pos] = action(from: skill)
+                    }
                 }
             }
-            let ult = chara.ultimate.map(action(from:))
+            let ult = special?.ultimate ?? chara.ultimate.map(action(from:))
+            let ultLoops = special.map(\.ultimateLoops) ?? (chara.ultimate?.requiredLoops ?? 0)
             var unit = Unit(
                 name: chara.displayName, isAlly: true, element: job.element,
                 maxHP: stats.hp, hp: stats.hp,
                 attack: stats.attack, defense: stats.defense, speed: stats.speed, magic: stats.magic,
-                slots: slots, ultimate: ult, ultimateLoops: chara.ultimate?.requiredLoops ?? 0,
-                reviveChance: chara.jobID == "zombie" ? 40 : 0,
-                spriteKey: chara.jobID
+                slots: slots, ultimate: ult, ultimateLoops: ultLoops,
+                spriteKey: chara.jobID,
+                passives: special?.passives ?? []
             )
             // 簡易詳細用の表示情報(オトモは装備なし)
             unit.isMainCharacter = true
@@ -73,6 +82,8 @@ extension BattleEngine {
                 slots: slots, ultimate: ult, ultimateLoops: otomo.ultimate?.requiredLoops ?? 0,
                 spriteKey: species.id
             )
+            // 獣使いのパッシブ・必殺技はオトモを対象に取るので、印を付ける
+            unit.isOtomo = true
             // オトモのパッシブ(メインより弱め)も戦闘に反映
             unit.gamePassives = otomo.passives
             unit.extraPassiveLabels = otomo.passives.map { "\($0.kind.label) +\($0.value)%" }
@@ -318,6 +329,28 @@ extension BattleEngine {
                  ultimate: BattleAction(name: "タコラッシュ", kind: .damage(pct: 40, target: .randomEnemies(8))),
                  ultimateLoops: 2, spriteKey: "octopus")
         }),
+        // 特殊キャラ(Lv50相当・剣士アンカーに揃えたステータス)。
+        // スロット/必殺技/固有パッシブは SpecialJobKits をそのまま使う
+        BalanceAlly(id: "slot_machine", displayName: "スロットマシン Lv50", element: .electric,
+                    spriteKey: "slot_machine", make: {
+            specialAlly(id: "slot_machine", name: "スロットマシン Lv50", element: .electric,
+                        hp: 600, attack: 200, defense: 150, speed: 100, magic: 30)
+        }),
+        BalanceAlly(id: "beast_master", displayName: "獣使い Lv50", element: .fire,
+                    spriteKey: "beast_master", make: {
+            specialAlly(id: "beast_master", name: "獣使い Lv50", element: .fire,
+                        hp: 650, attack: 180, defense: 170, speed: 95, magic: 40)
+        }),
+        BalanceAlly(id: "time_keeper", displayName: "タイムキーパー Lv50", element: .water,
+                    spriteKey: "time_keeper", make: {
+            specialAlly(id: "time_keeper", name: "タイムキーパー Lv50", element: .water,
+                        hp: 560, attack: 190, defense: 140, speed: 115, magic: 50)
+        }),
+        BalanceAlly(id: "zombie", displayName: "ゾンビ Lv50", element: .dark,
+                    spriteKey: "zombie", make: {
+            specialAlly(id: "zombie", name: "ゾンビ Lv50", element: .dark,
+                        hp: 700, attack: 195, defense: 160, speed: 80, magic: 20)
+        }),
         BalanceAlly(id: "akuma", displayName: "悪魔", element: .dark, spriteKey: "akuma", make: {
             // 悪魔(進化なし・闇・スロット4)。禊は(攻撃+魔力)基準の全体攻撃
             var unit = Unit(name: "悪魔", isAlly: true, element: .dark,
@@ -335,6 +368,22 @@ extension BattleEngine {
             return unit
         }),
     ]
+
+    /// 特殊キャラの調整用ユニットを固有キットから組み立てる
+    static func specialAlly(id: String, name: String, element: Element,
+                            hp: Int, attack: Int, defense: Int, speed: Int, magic: Int)
+        -> BattleEngine.Unit {
+        let kit = SpecialJobKits.kit(for: id)
+        var unit = Unit(name: name, isAlly: true, element: element,
+                        maxHP: hp, hp: hp, attack: attack, defense: defense,
+                        speed: speed, magic: magic,
+                        slots: kit?.slots ?? [.normal, .normal, .normal],
+                        ultimate: kit?.ultimate, ultimateLoops: kit?.ultimateLoops ?? 0,
+                        spriteKey: id, passives: kit?.passives ?? [])
+        unit.isMainCharacter = true
+        unit.extraPassiveLabels = (kit?.passives ?? []).map(\.label)
+        return unit
+    }
 
     /// ヒュドラ(中盤ボス)。属性は検証用に差し替え可能(既定は闇)
     static func balanceHydra(element: Element = .dark) -> BattleEngine.Unit {

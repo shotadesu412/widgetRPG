@@ -123,7 +123,10 @@ extension JobCatalog {
             ultimate2: ult("死告", .damageSingle, 340)),
 
         // MARK: 特殊戦闘キャラ
-        "slot_machine": JobKit( // 必殺技なし(一巡ランダム効果は今後実装)
+        // スロット・必殺技・戦闘パッシブは SpecialJobKits.swift の固有キットが優先される。
+        // ここで定義する skill10/70 は図鑑・詳細表示用、passive30/60/80 は
+        // 「戦闘に乗る汎用パッシブ」として固有ギミックに上乗せされる。
+        "slot_machine": JobKit( // 必殺技なし。代わりに一巡ごとのルーレット(固有パッシブ)
             skill10: sk("ラッキーヒット", .attack, 45, .electric, effect: .randomHits),
             skill70: sk("ジャックポット", .attack, 240, .electric),
             passive30: ps(.evenSlotBoost, 10),
@@ -141,9 +144,11 @@ extension JobCatalog {
         "beast_master": JobKit(
             skill10: sk("鞭打ち", .attack, 130, .fire),
             skill70: sk("野生の号令", .buff, 130, .fire),
-            passive30: ps(.otomoBoost, 10),
-            passive60: ps(.elementBoost, 10),
-            passive80: ps(.otomoBoost, 15),
+            // 仕様「味方のオトモの全ステータスを40%増加」を、
+            // 既存のレベル解放(Lv30/60/80)に載せて合計40%になるよう配分する
+            passive30: ps(.otomoBoost, 15),
+            passive60: ps(.otomoBoost, 15),
+            passive80: ps(.otomoBoost, 10),
             ultimate1: ult("群れの咆哮", .damageAll, 230),
             ultimate2: nil),
         "zombie": JobKit(
